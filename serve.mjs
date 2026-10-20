@@ -8,7 +8,7 @@ import { dirname, join, extname } from 'path';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const PORT = 8791;
-const STALE_MS = 5 * 60 * 1000; // data.json 超过 5 分钟视为过期
+const STALE_MS = 90 * 1000; // data.json 超过 90 秒视为过期
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',

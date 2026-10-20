@@ -27,6 +27,9 @@ code{background:#22252d;padding:1px 5px;border-radius:4px;font-size:11px}
 .badge.blue{color:#93c5fd;border-color:#1e3a8a}
 .badge.orange{color:#fdba74;border-color:#7c2d12}
 .badge.red{color:#fca5a5;border-color:#7f1d1d}
+.badge.amber{color:#fde68a;border-color:#78350f}
+#upd{color:#c7cbf5;font-weight:600}
+#upd.stale{color:var(--red)}
 .badge.purple{color:#c4b5fd;border-color:#4c1d95}
 .row{margin:10px 0}
 .row .top{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px}
@@ -105,8 +108,8 @@ section.t{margin-top:12px}
   <h2>GitHub 接入配置</h2>
   <div class="krow"><b>站点</b><span><a href="https://jivonkiang.github.io/coding-plan-monitor/" target="_blank">jivonkiang.github.io/coding-plan-monitor</a></span></div>
   <div class="krow"><b>仓库</b><span><a href="https://github.com/JivonKiang/coding-plan-monitor" target="_blank">JivonKiang/coding-plan-monitor</a></span></div>
-  <div class="krow"><b>自动更新</b><span>本机计划任务每 5 分钟运行 <code>node update.mjs</code> → 采集 4 平台 → push → Pages 自动重建</span></div>
-  <div class="krow"><b>页面刷新</b><span>每 5 分钟自动拉取；点右上「⟳ 刷新」立即更新；数据层同样是 5 分钟节拍，两者对齐</span></div>
+  <div class="krow"><b>自动更新</b><span>本机计划任务每 2 分钟运行 <code>node update.mjs</code> → 采集 4 平台 → push → Pages 自动重建</span></div>
+  <div class="krow"><b>页面刷新</b><span>每 2 分钟自动拉取；点右上「⟳ 刷新」立即更新；数据层同样是 2 分钟节拍，两者对齐</span></div>
   <div class="krow"><b>凭证安全</b><span>config.json / xf_tokens.json 仅存本机且被 .gitignore 排除；公开的只有余额/用量数字</span></div>
   <div class="note">本机另有 serve.mjs（tailnet 内 /plan 路径）提供同一面板的私有镜像，公网页面为主入口。新增平台只需在本机 config.json 填入凭证，下个采集周期自动生效。</div>
 </section>
@@ -117,7 +120,7 @@ section.t{margin-top:12px}
 </section>
 
 <footer>
-  数据来源：智谱开放平台 API · 火山方舟 arkcli · DeepSeek Balance API · sub2api 面板 API（bw.gsykj.com），由本机 <code>update.mjs</code> 每 5 分钟采集并推送。
+  数据来源：智谱开放平台 API · 火山方舟 arkcli · DeepSeek Balance API · sub2api 面板 API（bw.gsykj.com），由本机 <code>update.mjs</code> 每 2 分钟采集并推送。
 </footer>
 
 <script>
@@ -130,9 +133,10 @@ function ago(ms){const d=Date.now()-ms;if(d<60e3)return'刚刚';if(d<3600e3)retu
 function countdown(ms){if(!ms)return'';let s=Math.max(0,Math.round((ms-Date.now())/1000));const h=Math.floor(s/3600);s%=3600;const m=Math.floor(s/60);return h>0?`${h}小时${m}分后`:`${m}分钟后`}
 
 function winRow(w){
-  return `<div class="row"><div class="top"><b>${esc(w.label)}</b><span class="pct" style="color:${pctColor(w.pct)}">${w.pct.toFixed(1)}%</span></div>
+  const exhausted=w.pct>=99;
+  return `<div class="row"><div class="top"><b>${esc(w.label)}${exhausted?' <span class="badge amber">已用尽</span>':''}</b><span class="pct" style="color:${pctColor(w.pct)}">${w.pct.toFixed(1)}%</span></div>
   <div class="bar"><i style="width:${Math.min(100,w.pct)}%;background:${pctColor(w.pct)}"></i></div>
-  <div class="meta">${fmt(w.used)} / ${fmt(w.cap)} · <span class="cd" data-reset="${w.reset||''}">${w.reset?countdown(w.reset)+'重置':'—'}</span></div></div>`;
+  <div class="meta">${w.approx?'约 ':''}${fmt(w.used)} / ${fmt(w.cap)} · <span class="cd" data-reset="${w.reset||''}">${w.reset?countdown(w.reset)+'重置':'—'}</span></div></div>`;
 }
 const pend=(html)=>`<div class="pend">${html}</div>`;
 
@@ -214,9 +218,17 @@ function renderCost(d){
     <div class="note">口径说明：xf 实测单价 = 今日消费 ÷ 今日 tokens（混合了当日所用模型与缓存折扣，仅代表今日节奏）；月度预估按今日 ×30 线性外推，波动大时仅供参考；汇率取充值比例 ¥${rate} = $1，可在本机 config.json 的 xf.cnyPerUsd 修改。</div>`;
 }
 
+let lastTs=0;
+function updateUpd(){
+  const el=$('upd');
+  if(!lastTs)return;
+  el.textContent=`数据 ${new Date(lastTs).toLocaleTimeString('zh-CN',{hour12:false})} · ${ago(lastTs)}`;
+  el.classList.toggle('stale',Date.now()-lastTs>10*60e3);
+}
+
 function render(d){
   const z=d.zhipu,v=d.volc;
-  $('upd').textContent='更新于 '+ago(d.ts);
+  lastTs=d.ts||0;updateUpd();
   // 智谱
   if(z&&z.limits){
     $('zlevel').textContent='Lite';
@@ -226,7 +238,7 @@ function render(d){
   // 火山
   if(v&&v.periods){
     $('vedition').textContent=v.edition;
-    $('vbody').innerHTML=v.periods.map(winRow).join('');
+    $('vbody').innerHTML=v.periods.map(p=>winRow({...p,approx:1})).join('');
   } else $('vbody').innerHTML='<span class="err">火山数据缺失</span>';
   // DeepSeek / xf
   renderDeepseek(d.deepseek);
@@ -289,10 +301,10 @@ function trendChart(h){
 }
 
 // 窗口重置倒计时
-setInterval(()=>{document.querySelectorAll('.cd').forEach(el=>{const r=+el.dataset.reset;if(r)el.textContent=countdown(r)+'重置'})},30000);
+setInterval(()=>{document.querySelectorAll('.cd').forEach(el=>{const r=+el.dataset.reset;if(r)el.textContent=countdown(r)+'重置'});updateUpd()},30000);
 
 // 自动/手动刷新
-const REFRESH_MS=5*60*1000;
+const REFRESH_MS=2*60*1000;
 let nextAt=0,loading=false;
 async function load(){
   if(loading)return;
@@ -305,7 +317,7 @@ async function load(){
     render(await r.json());
     nextAt=Date.now()+REFRESH_MS;
   }catch(e){
-    $('upd').textContent='加载失败：'+e.message;
+    $('upd').textContent='加载失败：'+e.message;$('upd').classList.add('stale');
     nextAt=Date.now()+60e3; // 失败 1 分钟后重试
   }finally{
     loading=false;btn.disabled=false;btn.textContent='⟳ 刷新';
