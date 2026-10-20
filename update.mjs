@@ -14,6 +14,12 @@ const pad = (n) => String(n).padStart(2, '0');
 const cfg = JSON.parse(readFileSync(join(ROOT, 'config.json'), 'utf8'));
 if (!cfg.zhipuKey) { console.error('✗ config.json 缺少 zhipuKey'); process.exit(1); }
 
+// 可选平台采集失败不中断整体快照（返回 {error} 由页面展示；返回 null 表示未配置）
+async function safe(fn, name) {
+  try { return await fn(); }
+  catch (e) { console.error('⚠ [' + name + '] 采集失败: ' + (e.message || e)); return { error: String(e.message || e) }; }
+}
+
 // ---------- 智谱 ----------
 async function zhipuGet(path) {
   const r = await fetch('https://open.bigmodel.cn' + path, { headers: { Authorization: cfg.zhipuKey } });
@@ -119,9 +125,111 @@ function fetchVolc() {
   };
 }
 
+// ---------- DeepSeek（官方按量）----------
+async function fetchDeepseek() {
+  if (!cfg.deepseekKey) return null;
+  const r = await fetch('https://api.deepseek.com/user/balance', {
+    headers: { Authorization: 'Bearer ' + cfg.deepseekKey },
+  });
+  if (!r.ok) throw new Error('balance → HTTP ' + r.status);
+  const j = await r.json();
+  const b = (j.balance_infos || [])[0] || {};
+  return {
+    currency: b.currency || 'CNY',
+    total: Number(b.total_balance) || 0,
+    granted: Number(b.granted_balance) || 0,
+    toppedUp: Number(b.topped_up_balance) || 0,
+    isAvailable: j.is_available !== false,
+  };
+}
+
+// ---------- xf（bw.gsykj.com · sub2api 面板）----------
+const XF_TOKENS = join(ROOT, 'xf_tokens.json'); // refresh_token 轮换持久化（gitignored）
+const XF_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 plan-monitor/1.0'; // 固定 UA（JWT 含 UA/IP 指纹）
+const xfBase = () => (cfg.xf?.baseUrl || '').replace(/\/+$/, '');
+
+const xfLoad = () => { try { return JSON.parse(readFileSync(XF_TOKENS, 'utf8')); } catch { return null; } };
+const xfSave = (t) => writeFileSync(XF_TOKENS, JSON.stringify(t));
+
+async function xfApi(path, token) {
+  const r = await fetch(xfBase() + path, { headers: { Authorization: 'Bearer ' + token, 'User-Agent': XF_UA, Accept: 'application/json' } });
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401) { const e = new Error('token 失效'); e.status = 401; throw e; }
+  if (j.code !== 0) throw new Error(path.split('?')[0] + ' → ' + JSON.stringify(j).slice(0, 150));
+  return j.data;
+}
+
+async function xfLogin() {
+  const r = await fetch(xfBase() + '/api/v1/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'User-Agent': XF_UA },
+    body: JSON.stringify({ email: cfg.xf.email, password: cfg.xf.password }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (j.data?.requires_2fa) throw new Error('该账号开启了 2FA，脚本无法自动登录（需在面板关闭 2FA 或改用一次性临时令牌）');
+  if (j.code !== 0 || !j.data?.access_token) throw new Error('登录失败: ' + JSON.stringify(j).slice(0, 150));
+  xfSave({ access_token: j.data.access_token, refresh_token: j.data.refresh_token, savedAt: Date.now() });
+  return j.data.access_token;
+}
+
+// refresh_token 优先（一次性轮换，用后必须保存新对），无/失效再密码登录（login 限流 20/min）
+async function xfEnsureToken() {
+  const t = xfLoad();
+  if (t?.refresh_token) {
+    try {
+      const r = await fetch(xfBase() + '/api/v1/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'User-Agent': XF_UA },
+        body: JSON.stringify({ refresh_token: t.refresh_token }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (j.code === 0 && j.data?.access_token) {
+        xfSave({ access_token: j.data.access_token, refresh_token: j.data.refresh_token, savedAt: Date.now() });
+        return j.data.access_token;
+      }
+    } catch { /* refresh 失败走密码登录 */ }
+  }
+  return xfLogin();
+}
+
+async function fetchXf() {
+  if (!xfBase() || !cfg.xf?.email || !cfg.xf?.password) return null;
+  const token = await xfEnsureToken();
+  let profile, stats;
+  try {
+    [profile, stats] = await Promise.all([
+      xfApi('/api/v1/user/profile', token),
+      xfApi('/api/v1/usage/dashboard/stats', token),
+    ]);
+  } catch (e) {
+    if (e.status !== 401) throw e;
+    const t2 = await xfLogin(); // refresh 得到的 token 仍失效 → 重新登录
+    [profile, stats] = await Promise.all([
+      xfApi('/api/v1/user/profile', t2),
+      xfApi('/api/v1/usage/dashboard/stats', t2),
+    ]);
+  }
+  let keysCount = null;
+  try { const k = await xfApi('/api/v1/keys', token); keysCount = (k.items || []).length; } catch { /* 可选 */ }
+  return {
+    baseUrl: xfBase(),
+    balance: Number(profile.balance) || 0,
+    frozen: Number(profile.frozen_balance) || 0,
+    totalRecharged: Number(profile.total_recharged) || 0,
+    todayCost: Number(stats.today_actual_cost ?? stats.today_cost) || 0,
+    todayTokens: Number(stats.today_tokens) || 0,
+    todayRequests: Number(stats.today_requests) || 0,
+    totalCost: Number(stats.total_actual_cost ?? stats.total_cost) || 0,
+    totalTokens: Number(stats.total_tokens) || 0,
+    keysCount,
+  };
+}
+
 // ---------- 主流程 ----------
 const zhipu = await fetchZhipu();
 const volc = fetchVolc();
+const deepseek = await safe(fetchDeepseek, 'DeepSeek');
+const xf = await safe(fetchXf, 'xf');
 
 const zWorstPct = Math.max(...zhipu.limits.map((l) => l.pct));
 const vSessionPct = volc.periods.find((p) => p.key === 'session')?.pct ?? null;
@@ -135,10 +243,16 @@ if (existsSync(dataPath)) {
 history.push({ ts: Date.now(), zWorstPct, vSessionPct });
 history = history.slice(-200);
 
-const data = { ts: Date.now(), zhipu, volc, history };
+const data = { ts: Date.now(), zhipu, volc, deepseek, xf, history };
 writeFileSync(dataPath, JSON.stringify(data));
 console.log(`[智谱] OK ${zhipu.level} ` + zhipu.limits.map((l) => `${l.label}=${l.pct.toFixed(0)}%`).join(' '));
 console.log(`[火山] OK ${volc.edition} ` + volc.periods.map((p) => `${p.key}=${p.pct.toFixed(1)}%`).join(' '));
+if (deepseek && !deepseek.error) console.log(`[DeepSeek] OK 余额 ¥${deepseek.total.toFixed(2)}（可用=${deepseek.isAvailable}）`);
+else if (deepseek?.error) console.log('[DeepSeek] 未采集成功');
+else console.log('[DeepSeek] 未配置（config.json 的 deepseekKey 为空，跳过）');
+if (xf && !xf.error) console.log(`[xf] OK 余额 $${xf.balance.toFixed(2)} · 今日 $${xf.todayCost.toFixed(2)} / ${xf.todayTokens} tokens`);
+else if (xf?.error) console.log('[xf] 未采集成功');
+else console.log('[xf] 未配置（config.json 的 xf 段为空，跳过）');
 
 // ---------- 推送 ----------
 if (NO_PUSH) { console.log('（--no-push：跳过 git 推送）'); process.exit(0); }
@@ -150,6 +264,8 @@ const git = (args) => {
 git(['add', 'data.json']);
 const staged = git(['status', '--porcelain', 'data.json']).trim();
 if (!staged) { console.log('数据无变化，跳过推送'); process.exit(0); }
-git(['commit', '-m', `snapshot ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`]);
+const now = new Date();
+const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+git(['commit', '-m', `"snapshot ${stamp}"`]);
 git(['push']);
 console.log('✓ 已推送，Pages 稍后自动更新');

@@ -11,8 +11,14 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:14px 12px 40px;max-width:780px;margin:0 auto}
-h1{font-size:19px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:2px}
+h1{font-size:19px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px}
 h1 small{font-size:12px;color:var(--mut);font-weight:400}
+a{color:#93c5fd;text-decoration:none}
+a:hover{text-decoration:underline}
+code{background:#22252d;padding:1px 5px;border-radius:4px;font-size:11px}
+.btn{background:#22252d;border:1px solid var(--line);color:var(--txt);font-size:12px;padding:4px 12px;border-radius:999px;cursor:pointer;font-family:inherit}
+.btn:hover:not(:disabled){border-color:var(--blue)}
+.btn:disabled{opacity:.5;cursor:default}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
 @media(max-width:560px){.grid{grid-template-columns:1fr}}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
@@ -20,6 +26,8 @@ h1 small{font-size:12px;color:var(--mut);font-weight:400}
 .badge{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--mut)}
 .badge.blue{color:#93c5fd;border-color:#1e3a8a}
 .badge.orange{color:#fdba74;border-color:#7c2d12}
+.badge.red{color:#fca5a5;border-color:#7f1d1d}
+.badge.purple{color:#c4b5fd;border-color:#4c1d95}
 .row{margin:10px 0}
 .row .top{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px}
 .row .top b{font-weight:600}
@@ -28,7 +36,7 @@ h1 small{font-size:12px;color:var(--mut);font-weight:400}
 .bar i{display:block;height:100%;border-radius:99px;transition:width .4s}
 .meta{font-size:11px;color:var(--mut);margin-top:4px}
 .cd{color:#c7cbf5}
-.big{font-size:26px;font-weight:800;letter-spacing:-.5px}
+.big{font-size:26px;font-weight:800;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
 .sub{font-size:11.5px;color:var(--mut);margin-top:2px}
 table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px}
 th,td{text-align:right;padding:5px 4px;border-bottom:1px solid #1e2129;white-space:nowrap}
@@ -41,14 +49,26 @@ svg{display:block;width:100%;height:auto}
 footer{margin-top:16px;font-size:11.5px;color:var(--mut);line-height:1.7;border-top:1px solid var(--line);padding-top:10px}
 .err{color:var(--red);font-size:13px}
 section.t{margin-top:12px}
+.pend{border:1px dashed #333845;border-radius:10px;padding:12px;color:var(--mut);font-size:12.5px;line-height:1.8}
+.krow{display:flex;justify-content:space-between;gap:12px;font-size:12.5px;padding:6px 0;border-bottom:1px solid #1e2129}
+.krow:last-child{border-bottom:none}
+.krow b{font-weight:600;flex:0 0 auto}
+.krow span{color:var(--mut);text-align:right}
+.tips{list-style:none;margin-top:2px}
+.tips li{display:flex;gap:8px;font-size:12.5px;line-height:1.65;padding:7px 0;border-bottom:1px solid #1e2129}
+.tips li:last-child{border-bottom:none}
+.dot{flex:0 0 8px;width:8px;height:8px;border-radius:50%;margin-top:6px}
+.note{font-size:11.5px;color:var(--mut);margin-top:10px;line-height:1.8}
 </style>
 </head>
 <body>
-<h1>Coding Plan 额度总览 <small id="upd">加载中…</small></h1>
+<h1>Coding Plan 额度总览 <small id="upd">加载中…</small><small id="next"></small><button class="btn" id="refreshBtn">⟳ 刷新</button></h1>
 
 <div class="grid">
-  <div class="card" id="zcard"><h2>智谱 GLM <span class="badge blue" id="zlevel">—</span></h2><div id="zbody" class="mut">加载中…</div></div>
+  <div class="card" id="zcard"><h2>智谱 GLM <span class="badge blue" id="zlevel">—</span></h2><div id="zbody">加载中…</div></div>
   <div class="card" id="vcard"><h2>火山方舟 <span class="badge orange" id="vedition">—</span></h2><div id="vbody">加载中…</div></div>
+  <div class="card" id="dscard"><h2>DeepSeek 官方 <span class="badge red">按量</span></h2><div id="dsbody">加载中…</div></div>
+  <div class="card" id="xfcard"><h2>xf 中转站 <span class="badge purple">按量</span></h2><div id="xfbody">加载中…</div></div>
 </div>
 
 <section class="t card">
@@ -62,13 +82,37 @@ section.t{margin-top:12px}
 </section>
 
 <section class="t card">
+  <h2>性价比与费用决策</h2>
+  <ul class="tips" id="tips"></ul>
+  <table>
+    <tr><th>平台</th><th>模式</th><th>费用参考</th><th>定位</th></tr>
+    <tr><td>智谱 GLM</td><td>包年套餐</td><td>¥991.2/年 ≈ ¥82.6/月</td><td>日常主力</td></tr>
+    <tr><td>火山方舟</td><td>订阅</td><td>Pro 首月 ¥49.9</td><td>高峰/备用</td></tr>
+    <tr><td>DeepSeek 官方</td><td>按量</td><td>flash 1/2 · pro 3/6 元每M</td><td>稳定兜底</td></tr>
+    <tr><td>xf 中转</td><td>按量充值</td><td>低于官方价（余额见卡片）</td><td>低成本补充</td></tr>
+  </table>
+  <div class="note">
+    <b>决策原则：</b>套餐（智谱/火山）费用已付，用满边际成本≈0，永远优先用满；按量 API（DeepSeek/xf）每一次调用都是真金白银，仅在 ①套餐 5h 窗口 ≥90% 被限流、②需要更强模型、③长上下文重活 时启用。DeepSeek 官方最稳但最贵（v4-pro 输出 6 元/M，约为套餐折算成本的几十倍）；xf 中转更便宜，但稳定性依赖第三方。长上下文任务优先 DeepSeek v4-flash（缓存命中后输入低至 0.02 元/M）。
+  </div>
+</section>
+
+<section class="t card">
   <h2>历史占用趋势</h2>
   <div id="trend">暂无足够快照</div>
 </section>
 
+<section class="t card">
+  <h2>GitHub 接入配置</h2>
+  <div class="krow"><b>站点</b><span><a href="https://jivonkiang.github.io/coding-plan-monitor/" target="_blank">jivonkiang.github.io/coding-plan-monitor</a></span></div>
+  <div class="krow"><b>仓库</b><span><a href="https://github.com/JivonKiang/coding-plan-monitor" target="_blank">JivonKiang/coding-plan-monitor</a></span></div>
+  <div class="krow"><b>数据更新</b><span>电脑运行 <code>node update.mjs</code> → 采集 4 平台 → push → Pages 自动重建</span></div>
+  <div class="krow"><b>页面刷新</b><span>每 5 分钟自动拉取；点右上「⟳ 刷新」立即更新</span></div>
+  <div class="krow"><b>凭证安全</b><span>config.json / xf_tokens.json 已被 .gitignore 排除，仅存本机不公开</span></div>
+  <div class="note">手机端无需任何配置：电脑端推送快照后，手机打开站点即是最新数据。新增平台只需在本机 config.json 填入对应凭证再运行 update.mjs。</div>
+</section>
+
 <footer>
-  数据来源：智谱开放平台 API + 火山方舟 arkcli，由本机 <code>update.mjs</code> 采集并推送快照。<br>
-  更新方式：电脑上运行 <code>node update.mjs</code>（自动采集并推送），手机刷新本页即见最新。
+  数据来源：智谱开放平台 API · 火山方舟 arkcli · DeepSeek Balance API · sub2api 面板 API（bw.gsykj.com），由本机 <code>update.mjs</code> 采集推送。
 </footer>
 
 <script>
@@ -76,6 +120,7 @@ const $=id=>document.getElementById(id);
 const fmt=n=>n==null?'—':Number(n).toLocaleString('zh-CN');
 const pctColor=p=>p>=80?'var(--red)':p>=50?'var(--amber)':'var(--green)';
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const money=(n,c)=>n==null?'—':c+(Number(n)||0).toFixed(2);
 function ago(ms){const d=Date.now()-ms;if(d<60e3)return'刚刚';if(d<3600e3)return Math.round(d/60e3)+' 分钟前';if(d<86400e3)return Math.round(d/3600e3)+' 小时前';return new Date(ms).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}
 function countdown(ms){if(!ms)return'';let s=Math.max(0,Math.round((ms-Date.now())/1000));const h=Math.floor(s/3600);s%=3600;const m=Math.floor(s/60);return h>0?`${h}小时${m}分后`:`${m}分钟后`}
 
@@ -83,6 +128,47 @@ function winRow(w){
   return `<div class="row"><div class="top"><b>${esc(w.label)}</b><span class="pct" style="color:${pctColor(w.pct)}">${w.pct.toFixed(1)}%</span></div>
   <div class="bar"><i style="width:${Math.min(100,w.pct)}%;background:${pctColor(w.pct)}"></i></div>
   <div class="meta">${fmt(w.used)} / ${fmt(w.cap)} · <span class="cd" data-reset="${w.reset||''}">${w.reset?countdown(w.reset)+'重置':'—'}</span></div></div>`;
+}
+const pend=(html)=>`<div class="pend">${html}</div>`;
+
+function renderDeepseek(ds){
+  const el=$('dsbody');
+  if(!ds){el.innerHTML=pend(`待接入：在 <a href="https://platform.deepseek.com" target="_blank">platform.deepseek.com</a> 创建 API Key，填入本机 <code>config.json</code> 的 <code>deepseekKey</code>，运行 <code>node update.mjs</code> 即生效。<br>计费：v4-flash 输入 1 / 输出 2 元每M（缓存命中 0.02）· v4-pro 3 / 6 元每M。`);return}
+  if(ds.error){el.innerHTML=`<span class="err">采集失败：${esc(ds.error)}</span>`;return}
+  el.innerHTML=`<div class="big">${money(ds.total,'¥')}</div><div class="sub">余额 · 赠送 ${money(ds.granted,'¥')} / 充值 ${money(ds.toppedUp,'¥')}</div>`+
+    (ds.isAvailable===false?`<div class="meta" style="color:var(--red)">⚠ 账户当前不可用</div>`:'')+
+    `<table><tr><th>模型</th><th>输入 元/M</th><th>输出 元/M</th></tr>
+    <tr><td>v4-flash</td><td>1 <span class="meta">(缓存0.02)</span></td><td>2</td></tr>
+    <tr><td>v4-pro</td><td>3</td><td>6</td></tr></table>`;
+}
+
+function renderXf(x){
+  const el=$('xfbody');
+  if(!x){el.innerHTML=pend(`待接入：把 <a href="https://bw.gsykj.com" target="_blank">bw.gsykj.com</a> 的登录邮箱与密码填入本机 <code>config.json</code> 的 <code>xf</code> 段（账号需关闭 2FA），运行 <code>node update.mjs</code> 即自动采集余额与消费。`);return}
+  if(x.error){el.innerHTML=`<span class="err">采集失败：${esc(x.error)}</span>`;return}
+  el.innerHTML=`<div class="big">${money(x.balance,'$')}</div><div class="sub">可用余额 · 累计充值 ${money(x.totalRecharged,'$')}${x.frozen?` · 冻结 ${money(x.frozen,'$')}`:''}</div>
+  <div class="krow"><span>今日消费</span><b style="font-variant-numeric:tabular-nums">${money(x.todayCost,'$')}</b></div>
+  <div class="krow"><span>今日用量</span><b style="font-variant-numeric:tabular-nums">${fmt(x.todayTokens)} tk · ${fmt(x.todayRequests)} 次</b></div>
+  <div class="krow"><span>累计消费</span><b style="font-variant-numeric:tabular-nums">${money(x.totalCost,'$')}</b></div>`+
+    (x.keysCount!=null?`<div class="meta">API Keys：${x.keysCount} 个</div>`:'')+
+    `<div class="meta"><a href="${esc(x.baseUrl||'https://bw.gsykj.com')}" target="_blank">${esc(x.baseUrl||'bw.gsykj.com')}</a>（sub2api）</div>`;
+}
+
+function renderAdvice(d){
+  const z5=d.zhipu?.limits?.find(l=>/5小时/.test(l.label))?.pct??null;
+  const zw=d.zhipu?.limits?.find(l=>/周/.test(l.label))?.pct??null;
+  const vs=d.volc?.periods?.find(p=>p.key==='session')?.pct??null;
+  const tips=[];
+  const hot=[];
+  if(z5!=null&&z5>=90)hot.push('智谱 5h '+z5.toFixed(0)+'%');
+  if(vs!=null&&vs>=90)hot.push('火山 5h '+vs.toFixed(0)+'%');
+  if(hot.length)tips.push(['red',`高峰窗口接近上限（${hot.join('、')}）→ 切 DeepSeek / xf 按量 API 兜底，窗口重置后回套餐`]);
+  else if((z5!=null&&z5>=70)||(vs!=null&&vs>=70))tips.push(['amber',`窗口用量偏高（智谱 5h ${z5?.toFixed(0)??'—'}% / 火山 5h ${vs?.toFixed(0)??'—'}%）→ 非紧急任务错峰，留意上方重置倒计时`]);
+  else tips.push(['green','套餐余量充足 → 优先用智谱/火山（已付固定费，边际成本≈0），按量 API 仅作兜底']);
+  if(zw!=null&&zw>=85)tips.push(['red',`智谱周窗口已 ${zw.toFixed(0)}% → 本周期剩余时间控制用量`]);
+  if((d.deepseek&&!d.deepseek.error&&d.deepseek.total<=10))tips.push(['amber','DeepSeek 余额偏低（≤¥10）→ 充值前先用 xf 中转或套餐顶上']);
+  if((d.xf&&!d.xf.error&&d.xf.balance<=5))tips.push(['amber','xf 余额偏低（≤$5）→ 按量兜底能力受限']);
+  $('tips').innerHTML=tips.map(([c,t])=>`<li><span class="dot" style="background:var(--${c})"></span><span>${t}</span></li>`).join('');
 }
 
 function render(d){
@@ -99,6 +185,9 @@ function render(d){
     $('vedition').textContent=v.edition;
     $('vbody').innerHTML=v.periods.map(winRow).join('');
   } else $('vbody').innerHTML='<span class="err">火山数据缺失</span>';
+  // DeepSeek / xf
+  renderDeepseek(d.deepseek);
+  renderXf(d.xf);
   // 今日
   const t=d.today||(z&&z.today);
   if(t&&t.date){
@@ -111,6 +200,8 @@ function render(d){
   const days=z&&z.days||d.days, byModelDaily=z&&z.byModelDaily||d.byModelDaily;
   if(days&&byModelDaily) $('chart7').innerHTML=stackedChart(days,byModelDaily);
   else $('chart7').innerHTML='<span class="err">7 天数据缺失</span>';
+  // 决策建议
+  renderAdvice(d);
   // 趋势
   if(d.history&&d.history.length>=2) $('trend').innerHTML=trendChart(d.history);
   else $('trend').textContent='快照积累中（'+((d.history||[]).length)+' 个点，≥2 个后绘制）';
@@ -152,9 +243,38 @@ function trendChart(h){
   return `<svg viewBox="0 0 ${W} ${H}">${g}</svg><div class="legend"><span><i style="background:var(--blue)"></i>智谱最紧窗口</span><span><i style="background:var(--orange)"></i>火山 5h 窗口</span></div>`;
 }
 
+// 窗口重置倒计时
 setInterval(()=>{document.querySelectorAll('.cd').forEach(el=>{const r=+el.dataset.reset;if(r)el.textContent=countdown(r)+'重置'})},30000);
 
-fetch('data.json?t='+Date.now()).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}).then(render).catch(e=>{$('upd').textContent='加载失败';$('zbody').innerHTML=`<span class="err">无法加载 data.json：${esc(e.message)}</span>`});
+// 自动/手动刷新
+const REFRESH_MS=5*60*1000;
+let nextAt=0,loading=false;
+async function load(){
+  if(loading)return;
+  loading=true;
+  const btn=$('refreshBtn');
+  btn.disabled=true;btn.textContent='刷新中…';
+  try{
+    const r=await fetch('data.json?t='+Date.now());
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    render(await r.json());
+    nextAt=Date.now()+REFRESH_MS;
+  }catch(e){
+    $('upd').textContent='加载失败：'+e.message;
+    nextAt=Date.now()+60e3; // 失败 1 分钟后重试
+  }finally{
+    loading=false;btn.disabled=false;btn.textContent='⟳ 刷新';
+  }
+}
+$('refreshBtn').onclick=()=>{nextAt=0;load()};
+setInterval(()=>{
+  const el=$('next');
+  if(!nextAt)return;
+  const s=Math.round((nextAt-Date.now())/1000);
+  if(s<=0){el.textContent='';nextAt=0;load()}
+  else el.textContent='· '+(s>=60?Math.ceil(s/60)+' 分钟后自动刷新':s+' 秒后自动刷新');
+},1000);
+load();
 </script>
 </body>
 </html>
