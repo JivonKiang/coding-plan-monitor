@@ -105,14 +105,14 @@ section.t{margin-top:12px}
   <h2>GitHub 接入配置</h2>
   <div class="krow"><b>站点</b><span><a href="https://jivonkiang.github.io/coding-plan-monitor/" target="_blank">jivonkiang.github.io/coding-plan-monitor</a></span></div>
   <div class="krow"><b>仓库</b><span><a href="https://github.com/JivonKiang/coding-plan-monitor" target="_blank">JivonKiang/coding-plan-monitor</a></span></div>
-  <div class="krow"><b>数据更新</b><span>电脑运行 <code>node update.mjs</code> → 采集 4 平台 → push → Pages 自动重建</span></div>
-  <div class="krow"><b>页面刷新</b><span>每 5 分钟自动拉取；点右上「⟳ 刷新」立即更新</span></div>
-  <div class="krow"><b>凭证安全</b><span>config.json / xf_tokens.json 已被 .gitignore 排除，仅存本机不公开</span></div>
-  <div class="note">手机端无需任何配置：电脑端推送快照后，手机打开站点即是最新数据。新增平台只需在本机 config.json 填入对应凭证再运行 update.mjs。</div>
+  <div class="krow"><b>自动更新</b><span>本机计划任务每 5 分钟运行 <code>node update.mjs</code> → 采集 4 平台 → push → Pages 自动重建</span></div>
+  <div class="krow"><b>页面刷新</b><span>每 5 分钟自动拉取；点右上「⟳ 刷新」立即更新；数据层同样是 5 分钟节拍，两者对齐</span></div>
+  <div class="krow"><b>凭证安全</b><span>config.json / xf_tokens.json 仅存本机且被 .gitignore 排除；公开的只有余额/用量数字</span></div>
+  <div class="note">本机另有 serve.mjs（tailnet 内 /plan 路径）提供同一面板的私有镜像，公网页面为主入口。新增平台只需在本机 config.json 填入凭证，下个采集周期自动生效。</div>
 </section>
 
 <footer>
-  数据来源：智谱开放平台 API · 火山方舟 arkcli · DeepSeek Balance API · sub2api 面板 API（bw.gsykj.com），由本机 <code>update.mjs</code> 采集推送。
+  数据来源：智谱开放平台 API · 火山方舟 arkcli · DeepSeek Balance API · sub2api 面板 API（bw.gsykj.com），由本机 <code>update.mjs</code> 每 5 分钟采集并推送。
 </footer>
 
 <script>

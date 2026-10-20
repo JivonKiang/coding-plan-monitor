@@ -1,12 +1,23 @@
 // Coding Plan 额度采集 → data.json → git push（GitHub Pages 数据源）
-// 用法：node update.mjs [--no-push]
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+// 用法：node update.mjs [--no-push]  默认采集并推送；--no-push 仅本地更新
+import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'fs';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const NO_PUSH = process.argv.includes('--no-push');
+
+// ---------- 防并发锁（计划任务/手动/serve 同时触发时只跑一个）----------
+const LOCK = join(ROOT, 'update.lock');
+if (existsSync(LOCK)) {
+  try {
+    if (Date.now() - Number(readFileSync(LOCK, 'utf8')) < 180000) { console.log('已有采集在运行，本次跳过'); process.exit(0); }
+    unlinkSync(LOCK); // 超过 3 分钟视为残留锁
+  } catch {}
+}
+writeFileSync(LOCK, String(Date.now()));
+process.on('exit', () => { try { unlinkSync(LOCK); } catch {} });
 
 const pad = (n) => String(n).padStart(2, '0');
 
@@ -255,7 +266,7 @@ else if (xf?.error) console.log('[xf] 未采集成功');
 else console.log('[xf] 未配置（config.json 的 xf 段为空，跳过）');
 
 // ---------- 推送 ----------
-if (NO_PUSH) { console.log('（--no-push：跳过 git 推送）'); process.exit(0); }
+if (NO_PUSH) { console.log('（--no-push：仅本地更新 data.json）'); process.exit(0); }
 const git = (args) => {
   const r = spawnSync('git', args, { shell: true, encoding: 'utf8', cwd: ROOT });
   if (r.status !== 0) throw new Error('git ' + args.join(' ') + ' 失败: ' + ((r.stderr || '') + (r.stdout || '')).slice(0, 300));
