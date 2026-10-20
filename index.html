@@ -92,7 +92,7 @@ function render(d){
   if(z&&z.limits){
     $('zlevel').textContent='Lite';
     $('zbody').innerHTML=z.limits.map(winRow).join('')+
-      `<div class="meta">近7天 ${fmt(z.totalTokens7d)} tokens / ${fmt(z.totalCalls)} 次调用</div>`;
+      `<div class="meta">近7天 ${fmt(z.totalTokens7d)} tokens / ${fmt(z.totalCalls7d)} 次调用</div>`;
   } else $('zbody').innerHTML='<span class="err">智谱数据缺失</span>';
   // 火山
   if(v&&v.periods){
@@ -100,15 +100,17 @@ function render(d){
     $('vbody').innerHTML=v.periods.map(winRow).join('');
   } else $('vbody').innerHTML='<span class="err">火山数据缺失</span>';
   // 今日
-  const t=d.today;
-  if(t){
+  const t=d.today||(z&&z.today);
+  if(t&&t.date){
     $('tdate').textContent=t.date;
     $('tbody').innerHTML=`<div class="big">${fmt(t.totalTokens)}</div><div class="sub">tokens · ${fmt(t.totalCalls)} 次调用</div>`+
       (t.byModel&&t.byModel.length?`<table><tr><th>模型</th><th>今日 tokens</th><th>占 7 天总量</th></tr>`+
-        t.byModel.map(m=>`<tr><td>${esc(m.model)}</td><td>${fmt(m.tokens)}</td><td>${(m.share*100).toFixed(1)}%</td></tr>`).join('')+'</table>':'');
-  }
+        t.byModel.map(m=>`<tr><td>${esc(m.model)}</td><td>${fmt(m.tokens)}</td><td>${(Number(m.share||0)*100).toFixed(1)}%</td></tr>`).join('')+'</table>':'');
+  } else $('tbody').innerHTML='<span class="err">今日数据缺失</span>';
   // 7 天堆叠柱状图
-  if(d.days&&d.byModelDaily) $('chart7').innerHTML=stackedChart(d.days,d.byModelDaily);
+  const days=z&&z.days||d.days, byModelDaily=z&&z.byModelDaily||d.byModelDaily;
+  if(days&&byModelDaily) $('chart7').innerHTML=stackedChart(days,byModelDaily);
+  else $('chart7').innerHTML='<span class="err">7 天数据缺失</span>';
   // 趋势
   if(d.history&&d.history.length>=2) $('trend').innerHTML=trendChart(d.history);
   else $('trend').textContent='快照积累中（'+((d.history||[]).length)+' 个点，≥2 个后绘制）';
