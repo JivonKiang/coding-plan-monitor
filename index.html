@@ -111,6 +111,11 @@ section.t{margin-top:12px}
   <div class="note">本机另有 serve.mjs（tailnet 内 /plan 路径）提供同一面板的私有镜像，公网页面为主入口。新增平台只需在本机 config.json 填入凭证，下个采集周期自动生效。</div>
 </section>
 
+<section class="t card">
+  <h2>成本分析与优化 <span class="badge purple" id="costrate">—</span></h2>
+  <div id="costbody">加载中…</div>
+</section>
+
 <footer>
   数据来源：智谱开放平台 API · 火山方舟 arkcli · DeepSeek Balance API · sub2api 面板 API（bw.gsykj.com），由本机 <code>update.mjs</code> 每 5 分钟采集并推送。
 </footer>
@@ -146,12 +151,14 @@ function renderXf(x){
   const el=$('xfbody');
   if(!x){el.innerHTML=pend(`待接入：把 <a href="https://bw.gsykj.com" target="_blank">bw.gsykj.com</a> 的登录邮箱与密码填入本机 <code>config.json</code> 的 <code>xf</code> 段（账号需关闭 2FA），运行 <code>node update.mjs</code> 即自动采集余额与消费。`);return}
   if(x.error){el.innerHTML=`<span class="err">采集失败：${esc(x.error)}</span>`;return}
-  el.innerHTML=`<div class="big">${money(x.balance,'$')}</div><div class="sub">可用余额 · 累计充值 ${money(x.totalRecharged,'$')}${x.frozen?` · 冻结 ${money(x.frozen,'$')}`:''}</div>
-  <div class="krow"><span>今日消费</span><b style="font-variant-numeric:tabular-nums">${money(x.todayCost,'$')}</b></div>
+  const rate=x.cnyPerUsd||6.45, u2c=n=>'≈ ¥'+((Number(n)||0)*rate).toFixed(2);
+  const small=s=>` <small style="color:var(--mut);font-weight:400">${s}</small>`;
+  el.innerHTML=`<div class="big">${money(x.balance,'$')}</div><div class="sub">可用余额 ${u2c(x.balance)} · 累计充值 ${money(x.totalRecharged,'$')}${x.frozen?` · 冻结 ${money(x.frozen,'$')}`:''}</div>
+  <div class="krow"><span>今日消费</span><b style="font-variant-numeric:tabular-nums">${money(x.todayCost,'$')}${small(u2c(x.todayCost))}</b></div>
   <div class="krow"><span>今日用量</span><b style="font-variant-numeric:tabular-nums">${fmt(x.todayTokens)} tk · ${fmt(x.todayRequests)} 次</b></div>
-  <div class="krow"><span>累计消费</span><b style="font-variant-numeric:tabular-nums">${money(x.totalCost,'$')}</b></div>`+
+  <div class="krow"><span>累计消费</span><b style="font-variant-numeric:tabular-nums">${money(x.totalCost,'$')}${small(u2c(x.totalCost))}</b></div>`+
     (x.keysCount!=null?`<div class="meta">API Keys：${x.keysCount} 个</div>`:'')+
-    `<div class="meta"><a href="${esc(x.baseUrl||'https://bw.gsykj.com')}" target="_blank">${esc(x.baseUrl||'bw.gsykj.com')}</a>（sub2api）</div>`;
+    `<div class="meta"><a href="${esc(x.baseUrl||'https://bw.gsykj.com')}" target="_blank">${esc(x.baseUrl||'bw.gsykj.com')}</a>（sub2api）· 按充值汇率 ¥${rate} = $1 折算</div>`;
 }
 
 function renderAdvice(d){
@@ -169,6 +176,42 @@ function renderAdvice(d){
   if((d.deepseek&&!d.deepseek.error&&d.deepseek.total<=10))tips.push(['amber','DeepSeek 余额偏低（≤¥10）→ 充值前先用 xf 中转或套餐顶上']);
   if((d.xf&&!d.xf.error&&d.xf.balance<=5))tips.push(['amber','xf 余额偏低（≤$5）→ 按量兜底能力受限']);
   $('tips').innerHTML=tips.map(([c,t])=>`<li><span class="dot" style="background:var(--${c})"></span><span>${t}</span></li>`).join('');
+}
+
+function renderCost(d){
+  const el=$('costbody');
+  const x=d.xf, z=d.zhipu;
+  const rate=(x&&x.cnyPerUsd)||6.45;
+  $('costrate').textContent=`汇率 ¥${rate} = $1`;
+  const u2c=n=>(Number(n)||0)*rate;
+  if(!x||x.error||!(x.todayTokens>0)){
+    el.innerHTML='<span class="err">xf 今日数据缺失，实测成本暂不可算</span>';
+    return;
+  }
+  const perM=x.todayCost/x.todayTokens*1e6;   // xf 今日混合单价 $/M
+  const mon=x.todayCost*30;                    // 按今日节奏月度预估 $
+  // 智谱套餐折算单价：¥82.6/月 ÷ 近7天节奏的月 tokens
+  const zMonTok=z&&z.totalTokens7d>0?z.totalTokens7d/7*30:null;
+  const zPerM=zMonTok?82.6/(zMonTok/1e6):null;
+  const ratio=zPerM?u2c(perM)/zPerM:null;
+  const small=s=>` <small style="color:var(--mut);font-weight:400">${s}</small>`;
+  el.innerHTML=
+    `<div class="krow"><span>xf 今日消费（折人民币）</span><b style="font-variant-numeric:tabular-nums">${money(x.todayCost,'$')}${small('≈ ¥'+u2c(x.todayCost).toFixed(2))}</b></div>
+    <div class="krow"><span>xf 实测单价（今日混合）</span><b style="font-variant-numeric:tabular-nums">$${perM.toFixed(3)}/M tk${small('≈ ¥'+u2c(perM).toFixed(2)+'/M tk')}</b></div>
+    <div class="krow"><span>按今日节奏月度预估</span><b style="font-variant-numeric:tabular-nums">$${mon.toFixed(0)}/月${small('≈ ¥'+u2c(mon).toFixed(0)+'/月')}</b></div>
+    <table><tr><th>渠道</th><th>计费方式</th><th>折算单价</th><th>月成本</th></tr>
+    <tr><td>智谱 GLM</td><td>包年固定</td><td>${zPerM?'≈ ¥'+zPerM.toFixed(2)+'/M tk':'—'}</td><td>¥82.6（已付）</td></tr>
+    <tr><td>火山方舟</td><td>订阅固定</td><td>随用量摊薄</td><td>¥49.9（首月）</td></tr>
+    <tr><td>DeepSeek 官方</td><td>按量</td><td>flash ¥1/2 · pro ¥3/6 每M</td><td>按用量</td></tr>
+    <tr><td>xf 中转</td><td>按量</td><td>今日实测 ≈ ¥${u2c(perM).toFixed(2)}/M tk</td><td>预估 $${mon.toFixed(0)} ≈ ¥${u2c(mon).toFixed(0)}</td></tr></table>
+    <ul class="tips">
+    <li><span class="dot" style="background:var(--green)"></span><span><b>套餐优先：</b>智谱 + 火山都是固定费，用满边际成本≈0${zPerM?`（当前折算 ≈ ¥${zPerM.toFixed(2)}/M tk）`:''}；日常任务全部先走套餐，窗口用到 70% 再错峰。</span></li>
+    <li><span class="dot" style="background:var(--green)"></span><span><b>溢出顺序：</b>套餐 5h 窗口 ≥90% → 先走 xf（今日实测价更低）→ 需要最稳、要对官方账单时走 DeepSeek。</span></li>
+    <li><span class="dot" style="background:var(--amber)"></span><span><b>预算红线：</b>按今日节奏 xf 月预估 $${mon.toFixed(0)}（≈ ¥${u2c(mon).toFixed(0)}），建议给 xf 设「月度上限 = 预估 × 70%」，触线即回落套餐；余额 xf ≤$200、DeepSeek ≤¥30 时安排充值。</span></li>
+    ${ratio?`<li><span class="dot" style="background:var(--amber)"></span><span><b>单价意识：</b>今日 xf 混合单价约为套餐折算价的 ${ratio>=10?ratio.toFixed(0):ratio.toFixed(1)} 倍——能用 GLM / DeepSeek-flash 完成的任务别走按量贵模型。</span></li>`:''}
+    <li><span class="dot" style="background:var(--blue)"></span><span><b>每周复盘：</b>周日晚对照「近 7 天 tokens」柱状图与本月按量花费，把长草稿、批量总结等高 token 低难度任务固定在套餐与 flash 级模型上。</span></li>
+    </ul>
+    <div class="note">口径说明：xf 实测单价 = 今日消费 ÷ 今日 tokens（混合了当日所用模型与缓存折扣，仅代表今日节奏）；月度预估按今日 ×30 线性外推，波动大时仅供参考；汇率取充值比例 ¥${rate} = $1，可在本机 config.json 的 xf.cnyPerUsd 修改。</div>`;
 }
 
 function render(d){
@@ -202,6 +245,8 @@ function render(d){
   else $('chart7').innerHTML='<span class="err">7 天数据缺失</span>';
   // 决策建议
   renderAdvice(d);
+  // 成本分析与优化
+  renderCost(d);
   // 趋势
   if(d.history&&d.history.length>=2) $('trend').innerHTML=trendChart(d.history);
   else $('trend').textContent='快照积累中（'+((d.history||[]).length)+' 个点，≥2 个后绘制）';

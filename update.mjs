@@ -224,6 +224,7 @@ async function fetchXf() {
   try { const k = await xfApi('/api/v1/keys', token); keysCount = (k.items || []).length; } catch { /* 可选 */ }
   return {
     baseUrl: xfBase(),
+    cnyPerUsd: Number(cfg.xf?.cnyPerUsd) || 6.45, // 充值汇率：¥6.45 = $1
     balance: Number(profile.balance) || 0,
     frozen: Number(profile.frozen_balance) || 0,
     totalRecharged: Number(profile.total_recharged) || 0,
