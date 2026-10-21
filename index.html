@@ -10,7 +10,7 @@
   --blue:#3b82f6; --orange:#f97316; --green:#22c55e; --amber:#f59e0b; --red:#ef4444; --purple:#a78bfa;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:14px 12px 40px;max-width:780px;margin:0 auto}
+body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;padding:14px 12px 40px}
 h1{font-size:19px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px}
 h1 small{font-size:12px;color:var(--mut);font-weight:400}
 a{color:#93c5fd;text-decoration:none}
@@ -62,39 +62,108 @@ section.t{margin-top:12px}
 .tips li:last-child{border-bottom:none}
 .dot{flex:0 0 8px;width:8px;height:8px;border-radius:50%;margin-top:6px}
 .note{font-size:11.5px;color:var(--mut);margin-top:10px;line-height:1.8}
+html{scroll-behavior:smooth}
+.layout{display:grid;grid-template-columns:172px minmax(0,1fr);gap:18px;max-width:1060px;margin:0 auto;align-items:start}
+.side{position:sticky;top:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 10px}
+.side-logo{font-size:13.5px;font-weight:700;padding:2px 8px 10px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.snav{display:flex;flex-direction:column;gap:2px}
+.snav a{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:8px;font-size:12px;color:var(--mut);text-decoration:none}
+.snav a:hover{color:var(--txt);background:#1c1f27;text-decoration:none}
+.snav a.on{color:var(--txt);background:#22252d}
+.sdot{width:7px;height:7px;border-radius:50%;background:#333845;flex:0 0 7px}
+.side-foot{margin-top:10px;padding:8px 8px 0;border-top:1px solid var(--line);font-size:10.5px;color:var(--mut);line-height:1.7}
+.mnav{display:none}
+section.t,div.grid{scroll-margin-top:8px}
+.verdict{border-color:#2a3140}
+.vbig{font-size:24px;font-weight:800;letter-spacing:-.5px;line-height:1.2}
+.vwhy{font-size:12px;color:var(--mut);margin-top:6px;line-height:1.75}
+.vwhy b{color:var(--txt)}
+.vacts{margin-top:12px;display:flex;flex-direction:column;gap:8px}
+.vact{display:flex;gap:10px;align-items:flex-start;background:#1a1d25;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.vnum{flex:0 0 20px;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#0d0e12;margin-top:1px}
+.vact b{font-size:13px;display:block;font-weight:600}
+.vact .d{font-size:11.5px;color:var(--mut);line-height:1.65;display:block;margin-top:2px}
+@media(max-width:899px){
+  .layout{grid-template-columns:1fr;gap:0}
+  .side{display:none}
+  .mnav{display:flex;position:sticky;top:0;z-index:30;gap:6px;overflow-x:auto;background:rgba(13,14,18,.92);backdrop-filter:blur(8px);padding:10px 12px;margin:0 -12px;border-bottom:1px solid var(--line);-webkit-overflow-scrolling:touch}
+  .mnav a{flex:0 0 auto;font-size:12px;color:var(--mut);text-decoration:none;padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:var(--card);white-space:nowrap}
+  .mnav a.on{color:var(--txt);border-color:var(--blue)}
+  section.t,div.grid{scroll-margin-top:58px}
+}
+@media(max-width:560px){
+  table{display:block;overflow-x:auto}
+  .vbig{font-size:21px}
+  .big{font-size:22px}
+}
 </style>
 </head>
 <body>
+<nav class="mnav">
+  <a href="#sec-verdict" data-sec="sec-verdict"><i class="sdot jvdot"></i>决策</a>
+  <a href="#sec-platforms" data-sec="sec-platforms">平台</a>
+  <a href="#sec-today" data-sec="sec-today">今日</a>
+  <a href="#sec-pace" data-sec="sec-pace">节奏</a>
+  <a href="#sec-forecast" data-sec="sec-forecast">外推</a>
+  <a href="#sec-chart" data-sec="sec-chart">近 7 天</a>
+  <a href="#sec-advice" data-sec="sec-advice">建议</a>
+  <a href="#sec-trend" data-sec="sec-trend">趋势</a>
+  <a href="#sec-cost" data-sec="sec-cost">成本</a>
+  <a href="#sec-setup" data-sec="sec-setup">配置</a>
+</nav>
+<div class="layout">
+<aside class="side">
+  <div class="side-logo">额度总览</div>
+  <nav class="snav">
+    <a href="#sec-verdict" data-sec="sec-verdict"><i class="sdot jvdot"></i>今日决策</a>
+    <a href="#sec-platforms" data-sec="sec-platforms"><i class="sdot"></i>平台额度</a>
+    <a href="#sec-today" data-sec="sec-today"><i class="sdot"></i>今日消耗</a>
+    <a href="#sec-pace" data-sec="sec-pace"><i class="sdot"></i>节奏续航</a>
+    <a href="#sec-forecast" data-sec="sec-forecast"><i class="sdot"></i>决策外推</a>
+    <a href="#sec-chart" data-sec="sec-chart"><i class="sdot"></i>近 7 天</a>
+    <a href="#sec-advice" data-sec="sec-advice"><i class="sdot"></i>建议与性价比</a>
+    <a href="#sec-trend" data-sec="sec-trend"><i class="sdot"></i>历史趋势</a>
+    <a href="#sec-cost" data-sec="sec-cost"><i class="sdot"></i>成本分析</a>
+    <a href="#sec-setup" data-sec="sec-setup"><i class="sdot"></i>接入配置</a>
+  </nav>
+  <div class="side-foot">本机每 2 分钟采集推送<br>公网 Pages · 手机/电脑同步</div>
+</aside>
+<main>
 <h1>Coding Plan 额度总览 <small id="upd">加载中…</small><small id="next"></small><button class="btn" id="refreshBtn">⟳ 刷新</button></h1>
 
-<div class="grid">
+<section class="t card verdict" id="sec-verdict">
+  <h2>今日决策 <span class="badge" id="vbadge">—</span></h2>
+  <div id="vdbody">加载中…</div>
+</section>
+
+<div class="grid" id="sec-platforms">
   <div class="card" id="zcard"><h2>智谱 GLM <span class="badge blue" id="zlevel">—</span><span class="badge red">已申请退款</span></h2><div id="zbody">加载中…</div></div>
   <div class="card" id="vcard"><h2>火山方舟 <span class="badge orange" id="vedition">—</span></h2><div id="vbody">加载中…</div></div>
   <div class="card" id="dscard"><h2>DeepSeek 官方 <span class="badge red">按量</span></h2><div id="dsbody">加载中…</div></div>
   <div class="card" id="xfcard"><h2>xf 中转站 <span class="badge purple">按量</span></h2><div id="xfbody">加载中…</div></div>
 </div>
 
-<section class="t card">
+<section class="t card" id="sec-today">
   <h2>今日消耗 <span class="badge" id="tdate">—</span></h2>
   <div id="tbody">加载中…</div>
 </section>
 
-<section class="t card">
+<section class="t card" id="sec-pace">
   <h2>用量节奏与续航预测 <span class="badge" id="pacebadge">—</span></h2>
   <div id="pacebody">加载中…</div>
 </section>
 
-<section class="t card">
+<section class="t card" id="sec-forecast">
   <h2>消耗速率与决策外推 <span class="badge" id="fcbadge">—</span></h2>
   <div id="fcbody">加载中…</div>
 </section>
 
-<section class="t card">
+<section class="t card" id="sec-chart">
   <h2>近 7 天 tokens（智谱）</h2>
   <div id="chart7">加载中…</div>
 </section>
 
-<section class="t card">
+<section class="t card" id="sec-advice">
   <h2>性价比与费用决策</h2>
   <ul class="tips" id="tips"></ul>
   <table>
@@ -109,12 +178,17 @@ section.t{margin-top:12px}
   </div>
 </section>
 
-<section class="t card">
+<section class="t card" id="sec-trend">
   <h2>历史占用趋势</h2>
   <div id="trend">暂无足够快照</div>
 </section>
 
-<section class="t card">
+<section class="t card" id="sec-cost">
+  <h2>成本分析与优化 <span class="badge purple" id="costrate">—</span></h2>
+  <div id="costbody">加载中…</div>
+</section>
+
+<section class="t card" id="sec-setup">
   <h2>GitHub 接入配置</h2>
   <div class="krow"><b>站点</b><span><a href="https://jivonkiang.github.io/coding-plan-monitor/" target="_blank">jivonkiang.github.io/coding-plan-monitor</a></span></div>
   <div class="krow"><b>仓库</b><span><a href="https://github.com/JivonKiang/coding-plan-monitor" target="_blank">JivonKiang/coding-plan-monitor</a></span></div>
@@ -124,14 +198,11 @@ section.t{margin-top:12px}
   <div class="note">本机另有 serve.mjs（tailnet 内 /plan 路径）提供同一面板的私有镜像，公网页面为主入口。新增平台只需在本机 config.json 填入凭证，下个采集周期自动生效。</div>
 </section>
 
-<section class="t card">
-  <h2>成本分析与优化 <span class="badge purple" id="costrate">—</span></h2>
-  <div id="costbody">加载中…</div>
-</section>
-
 <footer>
   数据来源：智谱开放平台 API · 火山方舟 arkcli · DeepSeek Balance API · sub2api 面板 API（bw.gsykj.com），由本机 <code>update.mjs</code> 每 2 分钟采集并推送。
 </footer>
+</main>
+</div>
 
 <script>
 const $=id=>document.getElementById(id);
@@ -245,20 +316,20 @@ function renderForecast(d){
     return (l[k]-f[k])/dd;
   };
   const nDays=daily.length;
-  let html='',proj=null,vCap=vM?vM.cap:null;
+  let html='',proj=null,vCap=vM?vM.cap:null,ov=null,ovCost=null,verdict=null,burstD=null,vRate=null,vSrc='',xRate=null,xSrc='';
   // —— 火山：外推 11/19 结算总耗 → 续费档位决策 ——
   if(vM&&vM.used!=null){
     const mLeft=vM.reset?Math.max(0,(vM.reset-now)/86400e3):null;
     const mElapsed=mLeft!=null?Math.max(0.3,M_CYCLE-mLeft):null;
-    let vRate=slope('vMonthly'),vSrc='近几天日均';
+    vRate=slope('vMonthly');vSrc='近几天日均';
     if(vRate==null&&mElapsed){vRate=vM.used/mElapsed;vSrc='本账期日均';}
     if(vRate!=null&&mLeft!=null){
       proj=Math.round(vRate*mLeft+vM.used);
-      const ov=proj-vM.cap;
-      const burst=vM.cap-vM.used>0?now+(vM.cap-vM.used)/vRate*86400e3:now;
+      ov=proj-vM.cap;
+      burstD=vM.cap-vM.used>0?now+(vM.cap-vM.used)/vRate*86400e3:now;
       html+=`<div class="krow"><span>月窗口消耗速率</span>${NB(fmt(Math.round(vRate))+' 次/天'+small('（'+vSrc+'）'))}</div>
 <div class="krow"><span>外推结算总耗（11/19）</span>${NB(fmt(proj)+' / '+fmt(vM.cap)+' 次')}</div>
-<div class="krow"><span>按此速率打爆日</span>${NB(vM.cap-vM.used<=0?'已触顶':dstr(burst))}</div>`;
+<div class="krow"><span>按此速率打爆日</span>${NB(vM.cap-vM.used<=0?'已触顶':dstr(burstD))}</div>`;
       if(ov>0){
         let xfPerM=null;
         if(x&&!x.error&&x.todayTokens>0)xfPerM=x.todayCost/x.todayTokens*1e6;
@@ -267,8 +338,8 @@ function renderForecast(d){
         let avgTk=null;
         if(x&&!x.error&&x.todayRequests>0)avgTk=x.todayTokens/x.todayRequests;
         else{const rec=daily.slice().reverse().find(o=>o.xfReq>0);if(rec)avgTk=rec.xfTk/rec.xfReq;}
-        const ovCost=xfCnyM!=null&&avgTk?ov*avgTk/1e6*xfCnyM:null;
-        const verdict=ovCost!=null?(190+ovCost>500?'升 Large（¥500/250,000 次）更划算':'保持 Pro + 溢出走 xf 更划算'):'先按 xf 兜底观察';
+        ovCost=xfCnyM!=null&&avgTk?ov*avgTk/1e6*xfCnyM:null;
+        verdict=ovCost!=null?(190+ovCost>500?'升 Large（¥500/250,000 次）更划算':'保持 Pro + 溢出走 xf 更划算'):'先按 xf 兜底观察';
         html+=`<div class="note"><b>预测：Pro 将打爆</b>——外推结算超出上限 ≈${fmt(ov)} 次${ovCost!=null?`，溢出走 xf 兜底 ≈¥${Math.round(ovCost)}，Pro ¥190 + ¥${Math.round(ovCost)} = ¥${Math.round(190+ovCost)} vs 升 Large ¥500/250,000 次 → ${verdict}`:''}。11/8 续费时按本预测定档。</div>`;
       }else if(proj>=70000){
         html+=`<div class="note"><b>月末吃紧</b>——外推贴近上限，高 token 低难度任务（文档/检索/批量）分流 xf（≈¥0.06/M tk），给月窗口留余量。</div>`;
@@ -284,7 +355,6 @@ function renderForecast(d){
     const frac=Math.max(0.3,(now-midnight.getTime())/86400e3);
     const prevXf=daily.length>=2?daily[daily.length-2].xfCost:null;
     const tRate=x.todayCost>0?x.todayCost/frac:null;
-    let xRate=null,xSrc='';
     if(tRate!=null&&(prevXf==null||tRate>=prevXf)){xRate=tRate;xSrc='今日至今·折全天';}
     else if(prevXf>0){xRate=prevXf;xSrc='昨日全天';}
     if(xRate>0){
@@ -305,7 +375,6 @@ function renderForecast(d){
   }
   // —— 本月总账预估 ——
   if(xfMonth!=null)html+=`<div class="krow"><span>本月总账预估</span>${NB('≈ ¥'+(190+Math.round(xfMonth*rate))+small('（火山 Pro ¥190 + xf ≈¥'+Math.round(xfMonth*rate)+'；xf 存量余额可抵扣）'))}</div>`;
-  if(nDays<3)html+=`<div class="note">速率预测基于 daily 快照与账期锚点，当前仅积累 ${nDays} 天，满 3 天后自动切换近端日均，判断更准。</div>`;
   el.innerHTML=html||'<span class="err">数据缺失，无法外推</span>';
   let bc='',bt='积累中';
   if(proj!=null&&vCap!=null){
@@ -316,7 +385,7 @@ function renderForecast(d){
   badge.className='badge'+(bc?' '+bc:'');
   badge.style.color=bc?'':'var(--green)';badge.style.borderColor=bc?'':'#14532d';
   badge.textContent=bt;
-  window._fc={xfDays,xfMonth};
+  window._fc={xfDays,xfMonth,xRate,xSrc,bc,bt,proj,ov,ovCost,verdict,burst:burstD?dstr(burstD):null,vRate:vRate!=null?Math.round(vRate):null,vSrc,vCap,ready:true};
 }
 
 function renderAdvice(d){
@@ -342,6 +411,40 @@ function renderAdvice(d){
   const fc=window._fc||{};
   if(fc.xfDays!=null&&fc.xfDays<14)tips.push(['red',`xf 余额按当前速率仅够 ≈${Math.floor(fc.xfDays)} 天 → 尽快充值，避免兜底断档`]);
   $('tips').innerHTML=tips.map(([c,t])=>`<li><span class="dot" style="background:var(--${c})"></span><span>${t}</span></li>`).join('');
+}
+
+function renderVerdict(d){
+  const el=$('vdbody'),badge=$('vbadge');
+  const fc=window._fc||{};
+  const vM=d.volc&&d.volc.periods?d.volc.periods.find(p=>p.key==='monthly'):null;
+  const vmPct=vM?vM.pct:null;
+  const z5=d.zhipu&&d.zhipu.limits?d.zhipu.limits.find(l=>/5小时/.test(l.label)):null;
+  const vs=d.volc&&d.volc.periods?d.volc.periods.find(p=>p.key==='session'):null;
+  if(!fc.ready){el.innerHTML='<span class="err">数据缺失，无法生成决策</span>';badge.textContent='—';return}
+  const col=fc.bc?'var(--'+fc.bc+')':(fc.bt==='积累中'?'var(--mut)':'var(--green)');
+  let why='';
+  if(fc.bt==='Pro 将打爆')why=`按 ${fmt(fc.vRate)} 次/天（${fc.vSrc}）外推 11/19 结算 <b>${fmt(fc.proj)}</b> / ${fmt(fc.vCap)} 次，预计 <b>${fc.burst}</b> 触顶；溢出 ≈${fmt(fc.ov)} 次${fc.ovCost!=null?`，xf 兜底 ≈¥${Math.round(fc.ovCost)} → ${fc.verdict}`:''}。`;
+  else if(fc.bt==='月末吃紧')why=`按 ${fmt(fc.vRate)} 次/天（${fc.vSrc}）外推 11/19 结算 <b>${fmt(fc.proj)}</b> / ${fmt(fc.vCap)} 次，贴近 70,000 判定线，需给月窗口留余量。`;
+  else if(fc.bt==='续 Pro 稳')why=`按 ${fmt(fc.vRate)} 次/天（${fc.vSrc}）外推 11/19 结算 <b>${fmt(fc.proj)}</b> / ${fmt(fc.vCap)} 次，低于 70,000 判定线，无需升档。`;
+  else why=`外推数据不足（速率或账期锚点缺失），先看「决策外推」节，数据积累后自动出结论。`;
+  const acts=[];
+  if(fc.xfDays!=null&&fc.xfDays<14)acts.push(['red','xf 余额仅够 ≈'+Math.floor(fc.xfDays)+' 天 —— 本周内充值',`按 $${(fc.xRate||0).toFixed(2)}/天 消耗，兜底断档会卡住高峰分流`]);
+  else if(fc.xfDays!=null)acts.push(['green','xf 余额充足，暂无需充值',`按 $${(fc.xRate||0).toFixed(2)}/天 可撑 ≈${Math.floor(fc.xfDays)} 天`]);
+  if(fc.bt==='Pro 将打爆')acts.push(['red','11/8 续费升 Large（¥500/250,000 次）',`外推 ${fmt(fc.proj)} 次 = 上限 ${fmt(fc.vCap)} 的 ${(fc.proj/fc.vCap).toFixed(1)} 倍${fc.ovCost!=null?'，Pro ¥190 + xf 兜底 ≈¥'+Math.round(190+fc.ovCost)+' 不如直接升档':''}`]);
+  else if(fc.bt==='月末吃紧')acts.push(['amber','11/8 续 Pro + 开「超额后付费」设上限 ¥50',`外推 ${fmt(fc.proj)} 次贴近上限，保险动作防爆发日被限流`]);
+  else if(fc.bt==='续 Pro 稳')acts.push(['green','11/8 原档续 Pro（¥190）',`外推仅 ${fmt(fc.proj)} / ${fmt(fc.vCap)} 次，升档不划算`]);
+  if(fc.bt!=='续 Pro 稳'||(vmPct!=null&&vmPct>=60))acts.push(['amber','高 token 低难度任务立即分流','文档/检索/批量校验走 xf（≈¥0.06/M tk）或 GLM-4.7-Flash（免费），火山只留给核心编码']);
+  const hot=[];
+  if(vs&&vs.pct!=null&&vs.pct>=90)hot.push('火山 5h '+vs.pct.toFixed(0)+'%');
+  if(z5&&z5.pct!=null&&z5.pct>=90)hot.push('智谱 5h '+z5.pct.toFixed(0)+'%');
+  if(hot.length)acts.push(['red','当前高峰窗口近上限 —— 紧急任务切兜底',hot.join('、')+' → 现在就切 xf / DeepSeek，窗口重置后回火山']);
+  el.innerHTML=`<div class="vbig" style="color:${col}">${fc.bt}</div><div class="vwhy">${why}</div>`+
+    (acts.length?`<div class="vacts">`+acts.map((a,i)=>`<div class="vact"><span class="vnum" style="background:var(--${a[0]})">${i+1}</span><div><b>${a[1]}</b><span class="d">${a[2]}</span></div></div>`).join('')+`</div>`:'')+
+    ((d.daily||[]).length<3?`<div class="note">判断基于 daily 快照外推，当前仅积累 ${(d.daily||[]).length} 天，满 3 天后自动切换近端日均，结论更准。</div>`:'');
+  badge.className='badge'+(fc.bc?' '+fc.bc:'');
+  badge.style.color=fc.bc?'':'var(--green)';badge.style.borderColor=fc.bc?'':'#14532d';
+  badge.textContent=fc.bt;
+  document.querySelectorAll('.jvdot').forEach(dt=>dt.style.background=col);
 }
 
 function renderCost(d){
@@ -422,6 +525,8 @@ function render(d){
   renderForecast(d);
   // 决策建议
   renderAdvice(d);
+  // 今日决策卡
+  renderVerdict(d);
   // 成本分析与优化
   renderCost(d);
   // 趋势
@@ -464,6 +569,13 @@ function trendChart(h){
   h.forEach((pt,i)=>{if(i%step===0||i===h.length-1)g+=`<text x="${X(i)}" y="${H-4}" font-size="9" fill="var(--mut)" text-anchor="middle">${new Date(pt.ts).toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'})}</text>`});
   return `<svg viewBox="0 0 ${W} ${H}">${g}</svg><div class="legend"><span><i style="background:var(--blue)"></i>智谱最紧窗口</span><span><i style="background:var(--orange)"></i>火山 5h 窗口</span></div>`;
 }
+
+// 导航高亮：滚动时当前板块对应导航项加 .on
+const navLinks=[...document.querySelectorAll('.snav a,.mnav a')];
+const secIO=new IntersectionObserver(es=>{
+  es.forEach(e=>{if(e.isIntersecting)navLinks.forEach(a=>a.classList.toggle('on',a.dataset.sec===e.target.id))});
+},{rootMargin:'-10% 0px -75% 0px'});
+[...new Set(navLinks.map(a=>a.dataset.sec))].forEach(id=>{const s=document.getElementById(id);if(s)secIO.observe(s)});
 
 // 窗口重置倒计时
 setInterval(()=>{document.querySelectorAll('.cd').forEach(el=>{const r=+el.dataset.reset;if(r)el.textContent=countdown(r)+'重置'});updateUpd()},30000);
