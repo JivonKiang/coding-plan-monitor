@@ -68,7 +68,7 @@ section.t{margin-top:12px}
 <h1>Coding Plan 额度总览 <small id="upd">加载中…</small><small id="next"></small><button class="btn" id="refreshBtn">⟳ 刷新</button></h1>
 
 <div class="grid">
-  <div class="card" id="zcard"><h2>智谱 GLM <span class="badge blue" id="zlevel">—</span></h2><div id="zbody">加载中…</div></div>
+  <div class="card" id="zcard"><h2>智谱 GLM <span class="badge blue" id="zlevel">—</span><span class="badge red">已申请退款</span></h2><div id="zbody">加载中…</div></div>
   <div class="card" id="vcard"><h2>火山方舟 <span class="badge orange" id="vedition">—</span></h2><div id="vbody">加载中…</div></div>
   <div class="card" id="dscard"><h2>DeepSeek 官方 <span class="badge red">按量</span></h2><div id="dsbody">加载中…</div></div>
   <div class="card" id="xfcard"><h2>xf 中转站 <span class="badge purple">按量</span></h2><div id="xfbody">加载中…</div></div>
@@ -77,6 +77,11 @@ section.t{margin-top:12px}
 <section class="t card">
   <h2>今日消耗 <span class="badge" id="tdate">—</span></h2>
   <div id="tbody">加载中…</div>
+</section>
+
+<section class="t card">
+  <h2>用量节奏与续航预测 <span class="badge" id="pacebadge">—</span></h2>
+  <div id="pacebody">加载中…</div>
 </section>
 
 <section class="t card">
@@ -89,13 +94,13 @@ section.t{margin-top:12px}
   <ul class="tips" id="tips"></ul>
   <table>
     <tr><th>平台</th><th>模式</th><th>费用参考</th><th>定位</th></tr>
-    <tr><td>智谱 GLM</td><td>包年套餐</td><td>¥991.2/年 ≈ ¥82.6/月</td><td>日常主力</td></tr>
-    <tr><td>火山方舟</td><td>订阅</td><td>Pro 首月 ¥49.9</td><td>高峰/备用</td></tr>
-    <tr><td>DeepSeek 官方</td><td>按量</td><td>flash 1/2 · pro 3/6 元每M</td><td>稳定兜底</td></tr>
-    <tr><td>xf 中转</td><td>按量充值</td><td>低于官方价（余额见卡片）</td><td>低成本补充</td></tr>
+    <tr><td>火山方舟</td><td>订阅</td><td>Pro 首两月 ¥49.9 → 之后 ¥200/月</td><td>当前主力</td></tr>
+    <tr><td>xf 中转</td><td>按量充值</td><td>历史均价 ≈¥0.06/M tk</td><td>一级兜底（最便宜）</td></tr>
+    <tr><td>DeepSeek 官方</td><td>按量</td><td>flash 1/2 · pro 3/6 元每M</td><td>二级兜底（最稳）</td></tr>
+    <tr><td>智谱 GLM</td><td>包年（已退）</td><td>已申请退款，余量用完即止</td><td>已退出</td></tr>
   </table>
   <div class="note">
-    <b>决策原则：</b>套餐（智谱/火山）费用已付，用满边际成本≈0，永远优先用满；按量 API（DeepSeek/xf）每一次调用都是真金白银，仅在 ①套餐 5h 窗口 ≥90% 被限流、②需要更强模型、③长上下文重活 时启用。DeepSeek 官方最稳但最贵（v4-pro 输出 6 元/M，约为套餐折算成本的几十倍）；xf 中转更便宜，但稳定性依赖第三方。长上下文任务优先 DeepSeek v4-flash（缓存命中后输入低至 0.02 元/M）。
+    <b>决策原则：</b>火山 Pro 是唯一主力套餐（固定费已付，用满边际成本≈0）；月窗口余量 &lt;20% 前把文档/检索/批量校验类任务分流到 xf（≈¥0.06/M tk）或 GLM-4.7-Flash（免费）。按量 API 每次调用都是真金白银，仅在 ①窗口 ≥90% 被限流、②需要更强模型、③长上下文重活 时启用。<b>两个决策点：</b>11/8 活动结束（续费恢复 ¥200/月，邀新 9.5 折可叠加）；11/19 月周期结算（总消耗 &lt;70,000 次 → 续 Pro；持续打满 90,000 次 → 评估升 Large ¥500/月）。
   </div>
 </section>
 
@@ -165,18 +170,75 @@ function renderXf(x){
     `<div class="meta"><a href="${esc(x.baseUrl||'https://bw.gsykj.com')}" target="_blank">${esc(x.baseUrl||'bw.gsykj.com')}</a>（sub2api）· 充值比例 ¥300 = $2028（$1 ≈ ¥${rate}）折算</div>`;
 }
 
+function renderPace(d){
+  const el=$('pacebody'),badge=$('pacebadge');
+  const z=d.zhipu,v=d.volc;
+  if(!z||!z.byModelDaily||!z.limits||!v||!v.periods){el.innerHTML='<span class="err">数据缺失，无法测算节奏</span>';badge.textContent='—';return}
+  const days=z.days||[];
+  const perDay=days.map((_,i)=>Object.values(z.byModelDaily).reduce((s,m)=>s+(m.daily[i]||0),0));
+  const TH=10e6;
+  const bursts=perDay.map((t,i)=>({t,d:days[i]})).filter(o=>o.t>=TH);
+  const nB=bursts.length;
+  const bAvg=nB?bursts.reduce((s,o)=>s+o.t,0)/nB:0;
+  const zW=z.limits.find(l=>/周/.test(l.label));
+  const tkPerCred=(zW&&zW.used>0)?z.totalTokens7d/zW.used:null;
+  const vM=v.periods.find(p=>p.key==='monthly'),vW=v.periods.find(p=>p.key==='weekly');
+  const perBurst=(nB&&vM&&vM.used>0)?vM.used/nB:null;
+  const zLeftTk=(zW&&tkPerCred)?(zW.cap-zW.used)*tkPerCred:null;
+  const zBurst=(zLeftTk!=null&&bAvg>0)?zLeftTk/bAvg:null;
+  const vWB=(vW&&perBurst)?(vW.cap-vW.used)/perBurst:null;
+  const vMB=(vM&&perBurst)?(vM.cap-vM.used)/perBurst:null;
+  const zDaysLeft=(zW&&zW.reset)?Math.max(0,(zW.reset-Date.now())/86400e3):null;
+  const mDaysLeft=(vM&&vM.reset)?Math.max(1,(vM.reset-Date.now())/86400e3):null;
+  const wDaysLeft=(vW&&vW.reset)?Math.max(0,(vW.reset-Date.now())/86400e3):null;
+  const perWeekCap=(vMB!=null&&mDaysLeft)?vMB/(mDaysLeft/7):null;
+  window._pace={vMB,perWeekCap,vWB,zBurst,nB};
+  const small=s=>` <small style="color:var(--mut);font-weight:400">${s}</small>`;
+  const burstList=nB?bursts.map(o=>`${o.d.slice(5)}（${(o.t/1e6).toFixed(1)}M）`).join('、'):'近 7 天无爆发日';
+  let html=
+    `<div class="krow"><span>爆发日（≥${TH/1e6}M tk/天）</span><b style="font-variant-numeric:tabular-nums">${nB} 天${nB?small('日均 '+(bAvg/1e6).toFixed(1)+'M tk'):''}</b></div>
+    <div class="meta">检测到：${burstList}</div>
+    <div class="krow"><span>智谱 tokens/积分换算</span><b style="font-variant-numeric:tabular-nums">${tkPerCred?fmt(Math.round(tkPerCred))+' tk/积分':'—'}</b></div>
+    <div class="krow"><span>火山单爆发日消耗</span><b style="font-variant-numeric:tabular-nums">${perBurst?fmt(Math.round(perBurst))+' 次/爆发日':'—'}</b></div>
+    <table><tr><th>窗口</th><th>剩余量</th><th>还能撑</th><th>距重置</th></tr>`;
+  if(zW&&zLeftTk!=null)html+=`<tr><td>智谱周（已退）</td><td>≈${(zLeftTk/1e6).toFixed(0)}M tk</td><td>${zBurst!=null?zBurst.toFixed(1)+' 个爆发日':'—'}</td><td>${zDaysLeft!=null?zDaysLeft.toFixed(1)+' 天':'—'}</td></tr>`;
+  if(vW)html+=`<tr><td>火山周</td><td>${fmt(vW.cap-vW.used)} 次</td><td>${vWB!=null?vWB.toFixed(1)+' 个爆发日':'—'}</td><td>${wDaysLeft!=null?wDaysLeft.toFixed(1)+' 天':'—'}</td></tr>`;
+  if(vM)html+=`<tr><td>火山月</td><td>${fmt(vM.cap-vM.used)} 次</td><td>${vMB!=null?vMB.toFixed(1)+' 个爆发日':'—'}</td><td>${mDaysLeft!=null?mDaysLeft.toFixed(0)+' 天':'—'}</td></tr>`;
+  html+='</table>';
+  if(perWeekCap!=null&&vMB!=null){
+    html+=`<div class="note"><b>月窗口结论：</b>月周期内还能容纳 ≈${vMB.toFixed(1)} 个爆发日（剩 ${mDaysLeft.toFixed(0)} 天 ≈ ${(mDaysLeft/7).toFixed(1)} 周）→ 平均每周最多 <b>${perWeekCap.toFixed(1)} 个爆发日</b>；近 7 天已出现 ${nB} 个，按此节奏月窗口大概率在 11/19 前打满。<br>
+    ① 火山 Pro 月窗口 ${fmt(vM.cap)} 次是结构性瓶颈：一个爆发日烧 ≈${fmt(Math.round(perBurst||0))} 次，纯 Pro 撑不满整个 30 天周期。<br>
+    ② 11/8 前决策：续 Pro（恢复 ¥200/月，邀新 9.5 折可叠加）+ 开「超额后付费」设上限 ¥50 做保险。<br>
+    ③ 高 token 低难度任务（文档/检索/批量校验）分流 xf（≈¥0.06/M tk）或 GLM-4.7-Flash（免费），给月窗口留余量。</div>`;
+  }
+  el.innerHTML=html;
+  let bc='',bt='充足';
+  if(perWeekCap!=null&&perWeekCap<2){bc='red';bt='月窗口必触顶'}
+  else if(perWeekCap!=null&&perWeekCap<3){bc='amber';bt='月末吃紧'}
+  else if(vW&&vW.pct>=70){bc='amber';bt='周窗口偏高'}
+  badge.className='badge'+(bc?' '+bc:'');
+  badge.style.color=bc?'':'var(--green)';badge.style.borderColor=bc?'':'#14532d';
+  badge.textContent=bt;
+}
+
 function renderAdvice(d){
   const z5=d.zhipu?.limits?.find(l=>/5小时/.test(l.label))?.pct??null;
   const zw=d.zhipu?.limits?.find(l=>/周/.test(l.label))?.pct??null;
   const vs=d.volc?.periods?.find(p=>p.key==='session')?.pct??null;
+  const vw=d.volc?.periods?.find(p=>p.key==='weekly')?.pct??null;
+  const vm=d.volc?.periods?.find(p=>p.key==='monthly')?.pct??null;
+  const pace=window._pace||{};
   const tips=[];
   const hot=[];
-  if(z5!=null&&z5>=90)hot.push('智谱 5h '+z5.toFixed(0)+'%');
   if(vs!=null&&vs>=90)hot.push('火山 5h '+vs.toFixed(0)+'%');
-  if(hot.length)tips.push(['red',`高峰窗口接近上限（${hot.join('、')}）→ 切 DeepSeek / xf 按量 API 兜底，窗口重置后回套餐`]);
-  else if((z5!=null&&z5>=70)||(vs!=null&&vs>=70))tips.push(['amber',`窗口用量偏高（智谱 5h ${z5?.toFixed(0)??'—'}% / 火山 5h ${vs?.toFixed(0)??'—'}%）→ 非紧急任务错峰，留意上方重置倒计时`]);
-  else tips.push(['green','套餐余量充足 → 优先用智谱/火山（已付固定费，边际成本≈0），按量 API 仅作兜底']);
-  if(zw!=null&&zw>=85)tips.push(['red',`智谱周窗口已 ${zw.toFixed(0)}% → 本周期剩余时间控制用量`]);
+  if(z5!=null&&z5>=90)hot.push('智谱 5h '+z5.toFixed(0)+'%');
+  if(hot.length)tips.push(['red',`高峰窗口接近上限（${hot.join('、')}）→ 切 xf（一级兜底）或 DeepSeek（二级兜底），窗口重置后回火山 Pro`]);
+  else if((z5!=null&&z5>=70)||(vs!=null&&vs>=70))tips.push(['amber',`窗口用量偏高（火山 5h ${vs?.toFixed(0)??'—'}% / 智谱 5h ${z5?.toFixed(0)??'—'}%）→ 非紧急任务错峰，留意上方重置倒计时`]);
+  else tips.push(['green','余量充足 → 优先用火山 Pro（固定费已付，边际成本≈0），按量 API 仅作兜底']);
+  if(pace.perWeekCap!=null&&pace.perWeekCap<3)tips.push(['red',`月窗口吃紧（按当前节奏每周最多再容纳 ≈${pace.perWeekCap.toFixed(1)} 个爆发日）→ 高 token 低难度任务立即分流 xf / GLM-4.7-Flash，并开启「超额后付费」设上限 ¥50 做保险`]);
+  if(vm!=null&&vm>=60)tips.push(['amber',`火山月窗口已 ${vm.toFixed(0)}% → 分流升级：文档/检索/批量类全部走 xf（≈¥0.06/M tk），火山只留给核心编码`]);
+  if(vw!=null&&vw>=70)tips.push(['amber',`火山周窗口已 ${vw.toFixed(0)}% → 控制本周节奏，周窗口周一重置`]);
+  if(zw!=null&&zw>=85)tips.push(['amber',`智谱周窗口已 ${zw.toFixed(0)}% → 已退订，余量用完即止，不再续费`]);
   if((d.deepseek&&!d.deepseek.error&&d.deepseek.total<=10))tips.push(['amber','DeepSeek 余额偏低（≤¥10）→ 充值前先用 xf 中转或套餐顶上']);
   if((d.xf&&!d.xf.error&&d.xf.balance<=34))tips.push(['amber','xf 余额偏低（折合 ≈¥5）→ 按量兜底能力受限']);
   $('tips').innerHTML=tips.map(([c,t])=>`<li><span class="dot" style="background:var(--${c})"></span><span>${t}</span></li>`).join('');
@@ -188,34 +250,33 @@ function renderCost(d){
   const rate=(x&&x.cnyPerUsd)||0.1479;
   $('costrate').textContent=`$1 ≈ ¥${rate}`;
   const u2c=n=>(Number(n)||0)*rate;
-  if(!x||x.error||!(x.todayTokens>0)){
-    el.innerHTML='<span class="err">xf 今日数据缺失，实测成本暂不可算</span>';
-    return;
-  }
-  const perM=x.todayCost/x.todayTokens*1e6;   // xf 今日混合单价 $/M
-  const mon=x.todayCost*30;                    // 按今日节奏月度预估 $
-  // 智谱套餐折算单价：¥82.6/月 ÷ 近7天节奏的月 tokens
-  const zMonTok=z&&z.totalTokens7d>0?z.totalTokens7d/7*30:null;
-  const zPerM=zMonTok?82.6/(zMonTok/1e6):null;
-  const ratio=zPerM?u2c(perM)/zPerM:null;
   const small=s=>` <small style="color:var(--mut);font-weight:400">${s}</small>`;
+  // xf 单价：今日实测优先，无今日数据时回退历史均价（总消费÷总 tokens）
+  let xfPerM=null,xfSrc='';
+  if(x&&!x.error&&x.todayTokens>0){xfPerM=x.todayCost/x.todayTokens*1e6;xfSrc='今日实测'}
+  else if(x&&!x.error&&x.totalTokens>0){xfPerM=x.totalCost/x.totalTokens*1e6;xfSrc='历史均价'}
+  const xfCny=xfPerM!=null?u2c(xfPerM):null;
+  const vPerCall=200/90000; // ¥200/月 ÷ 90,000 次用满摊薄
+  const mon=(x&&!x.error&&x.todayCost>0)?x.todayCost*30:null;
   el.innerHTML=
-    `<div class="krow"><span>xf 今日消费（折人民币）</span><b style="font-variant-numeric:tabular-nums">${money(x.todayCost,'$')}${small('≈ ¥'+u2c(x.todayCost).toFixed(2))}</b></div>
-    <div class="krow"><span>xf 实测单价（今日混合）</span><b style="font-variant-numeric:tabular-nums">$${perM.toFixed(3)}/M tk${small('≈ ¥'+u2c(perM).toFixed(2)+'/M tk')}</b></div>
-    <div class="krow"><span>按今日节奏月度预估</span><b style="font-variant-numeric:tabular-nums">$${mon.toFixed(0)}/月${small('≈ ¥'+u2c(mon).toFixed(0)+'/月')}</b></div>
+    (xfPerM!=null?
+    `<div class="krow"><span>xf 单价（${xfSrc}）</span><b style="font-variant-numeric:tabular-nums">$${xfPerM.toFixed(3)}/M tk${small('≈ ¥'+xfCny.toFixed(3)+'/M tk')}</b></div>
+    <div class="krow"><span>xf 累计消费</span><b style="font-variant-numeric:tabular-nums">${money(x.totalCost,'$')}${small('≈ ¥'+u2c(x.totalCost).toFixed(0)+' · '+fmt(x.totalTokens)+' tk')}</b></div>`:
+    `<div class="krow"><span>xf 数据缺失</span><b>—</b></div>`)+
+    `<div class="krow"><span>火山 Pro 摊薄单价</span><b style="font-variant-numeric:tabular-nums">≈ ¥${vPerCall.toFixed(4)}/次${small('¥200/月 ÷ 90,000 次用满；首两月 ¥49.9 更低')}</b></div>
     <table><tr><th>渠道</th><th>计费方式</th><th>折算单价</th><th>月成本</th></tr>
-    <tr><td>智谱 GLM</td><td>包年固定</td><td>${zPerM?'≈ ¥'+zPerM.toFixed(2)+'/M tk':'—'}</td><td>¥82.6（已付）</td></tr>
-    <tr><td>火山方舟</td><td>订阅固定</td><td>随用量摊薄</td><td>¥49.9（首月）</td></tr>
-    <tr><td>DeepSeek 官方</td><td>按量</td><td>flash ¥1/2 · pro ¥3/6 每M</td><td>按用量</td></tr>
-    <tr><td>xf 中转</td><td>按量</td><td>今日实测 ≈ ¥${u2c(perM).toFixed(2)}/M tk</td><td>预估 $${mon.toFixed(0)} ≈ ¥${u2c(mon).toFixed(0)}</td></tr></table>
+    <tr><td>火山方舟 Pro</td><td>订阅固定（主力）</td><td>≈ ¥0.0022/次（用满摊薄）</td><td>¥49.9 首两月 → ¥200</td></tr>
+    <tr><td>xf 中转</td><td>按量（一级兜底）</td><td>${xfCny!=null?'≈ ¥'+xfCny.toFixed(2)+'/M tk（历史均价）':'—'}</td><td>按用量 · 余额 $${x&&!x.error?x.balance:'—'}</td></tr>
+    <tr><td>DeepSeek 官方</td><td>按量（二级兜底）</td><td>flash ¥1/2 · pro ¥3/6 每M</td><td>按用量 · 余额 ¥${d.deepseek&&!d.deepseek.error?d.deepseek.total:'—'}</td></tr>
+    <tr><td>智谱 GLM</td><td>包年（退款中）</td><td>余量用完即止</td><td>¥0（已退）</td></tr></table>
     <ul class="tips">
-    <li><span class="dot" style="background:var(--green)"></span><span><b>套餐优先：</b>智谱 + 火山都是固定费，用满边际成本≈0${zPerM?`（当前折算 ≈ ¥${zPerM.toFixed(2)}/M tk）`:''}；日常任务全部先走套餐，窗口用到 70% 再错峰。</span></li>
-    <li><span class="dot" style="background:var(--green)"></span><span><b>溢出顺序：</b>套餐 5h 窗口 ≥90% → 先走 xf（今日实测价更低）→ 需要最稳、要对官方账单时走 DeepSeek。</span></li>
-    <li><span class="dot" style="background:var(--amber)"></span><span><b>预算红线：</b>按今日节奏 xf 月预估 $${mon.toFixed(0)}（≈ ¥${u2c(mon).toFixed(0)}），建议给 xf 设「月度上限 = 预估 × 70%」，触线即回落套餐；余额 xf ≤$340（折合 ≈¥50）、DeepSeek ≤¥30 时安排充值。</span></li>
-    ${ratio?`<li><span class="dot" style="background:var(--amber)"></span><span><b>单价意识：</b>今日 xf 混合单价约为套餐折算价的 ${ratio>=10?ratio.toFixed(0):ratio.toFixed(1)} 倍——能用 GLM / DeepSeek-flash 完成的任务别走按量贵模型。</span></li>`:''}
-    <li><span class="dot" style="background:var(--blue)"></span><span><b>每周复盘：</b>周日晚对照「近 7 天 tokens」柱状图与本月按量花费，把长草稿、批量总结等高 token 低难度任务固定在套餐与 flash 级模型上。</span></li>
+    <li><span class="dot" style="background:var(--green)"></span><span><b>主力用满：</b>火山 Pro 固定费已付，用满边际成本≈0；月窗口 90,000 次就是本账期总弹药，不用白不用。</span></li>
+    <li><span class="dot" style="background:var(--blue)"></span><span><b>溢出顺序：</b>火山 5h 窗口 ≥90% → 先走 xf（历史均价 ≈¥0.06/M tk，最便宜）→ 需要官方账单、更稳时走 DeepSeek；GLM-4.7-Flash（免费）与 DeepSeek v4-flash 适合低难度批量任务。</span></li>
+    <li><span class="dot" style="background:var(--amber)"></span><span><b>月窗口分流：</b>月窗口余量 &lt;20% → 文档/检索/批量校验类任务全部改走 xf 或免费模型，火山只留给核心编码；xf 余额 ≤$340（≈¥50）、DeepSeek ≤¥30 时安排充值。</span></li>
+    <li><span class="dot" style="background:var(--blue)"></span><span><b>两个决策点：</b>①11/8 活动结束，续费恢复 ¥200/月（邀新 9.5 折可叠加）；②11/19 月周期结算——总消耗 &lt;70,000 次 → 续 Pro 够用；持续打满 90,000 次或连续两月按量补差 &gt;¥300 → 评估升 Large（¥500/月 · 250,000 次）。</span></li>
+    <li><span class="dot" style="background:var(--green)"></span><span><b>保险动作：</b>在火山控制台开启「超额后付费」并设账单上限 ¥50/月——套餐用尽自动切按量，避免爆发日被限流卡住干活。</span></li>
     </ul>
-    <div class="note">口径说明：xf 实测单价 = 今日消费 ÷ 今日 tokens（混合了当日所用模型与缓存折扣，仅代表今日节奏）；月度预估按今日 ×30 线性外推，波动大时仅供参考；汇率按充值比例 ¥300 = $2028（$1 ≈ ¥${rate}），可在本机 config.json 的 xf.cnyPerUsd 修改。</div>`;
+    <div class="note">口径说明：xf 单价优先今日实测（今日消费 ÷ 今日 tokens），无今日数据时回退历史均价（累计消费 ÷ 累计 tokens）；汇率按充值比例 ¥300 = $2028（$1 ≈ ¥${rate}），可在本机 config.json 的 xf.cnyPerUsd 修改；火山单价按 ¥200 档用满摊薄，实际首两月更低。</div>`;
 }
 
 let lastTs=0;
@@ -231,7 +292,7 @@ function render(d){
   lastTs=d.ts||0;updateUpd();
   // 智谱
   if(z&&z.limits){
-    $('zlevel').textContent='Lite';
+    $('zlevel').textContent=(z.level||'Lite').toUpperCase();
     $('zbody').innerHTML=z.limits.map(winRow).join('')+
       `<div class="meta">近7天 ${fmt(z.totalTokens7d)} tokens / ${fmt(z.totalCalls7d)} 次调用</div>`;
   } else $('zbody').innerHTML='<span class="err">智谱数据缺失</span>';
@@ -255,6 +316,8 @@ function render(d){
   const days=z&&z.days||d.days, byModelDaily=z&&z.byModelDaily||d.byModelDaily;
   if(days&&byModelDaily) $('chart7').innerHTML=stackedChart(days,byModelDaily);
   else $('chart7').innerHTML='<span class="err">7 天数据缺失</span>';
+  // 节奏与续航预测
+  renderPace(d);
   // 决策建议
   renderAdvice(d);
   // 成本分析与优化
