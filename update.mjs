@@ -246,16 +246,34 @@ const xf = await safe(fetchXf, 'xf');
 const zWorstPct = zhipu?.limits?.length ? Math.max(...zhipu.limits.map((l) => l.pct)) : null;
 const vSessionPct = volc?.periods?.find((p) => p.key === 'session')?.pct ?? null;
 
-// history：追加本次快照，保留最近 200 条
-let history = [];
+// history：追加本次快照，保留最近 200 条；daily：按天聚合消耗快照（趋势预测数据底座）
+let history = [], daily = [];
 const dataPath = join(ROOT, 'data.json');
 if (existsSync(dataPath)) {
-  try { history = JSON.parse(readFileSync(dataPath, 'utf8')).history || []; } catch {}
+  try { const prev = JSON.parse(readFileSync(dataPath, 'utf8')); history = prev.history || []; daily = prev.daily || []; } catch {}
 }
 history.push({ ts: Date.now(), zWorstPct, vSessionPct });
 history = history.slice(-200);
 
-const data = { ts: Date.now(), zhipu, volc, deepseek, xf, history };
+// daily：每天一条消耗快照（同天覆盖，null 字段保留旧值避免采集失败抹数据），保留最近 60 天
+const _d = new Date();
+const today = `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, '0')}-${String(_d.getDate()).padStart(2, '0')}`;
+const vUsed = (k) => volc?.periods?.find((p) => p.key === k)?.used ?? null;
+const snap = {
+  date: today,
+  ts: Date.now(),
+  vMonthly: vUsed('monthly'), vWeekly: vUsed('weekly'), vSessionUsed: vUsed('session'),
+  zWeek: zhipu?.limits?.find((l) => (l.label || '').includes('周'))?.used ?? null,
+  zTodayTk: zhipu?.today?.totalTokens ?? null, zTodayReq: zhipu?.today?.totalCalls ?? null,
+  xfCost: xf?.todayCost ?? null, xfTk: xf?.todayTokens ?? null, xfReq: xf?.todayRequests ?? null,
+  ds: deepseek?.total ?? null,
+};
+const di = daily.findIndex((x) => x.date === today);
+if (di >= 0) { const old = daily[di]; for (const k of Object.keys(snap)) if (snap[k] == null && old[k] != null) snap[k] = old[k]; daily[di] = snap; }
+else daily.push(snap);
+daily = daily.slice(-60);
+
+const data = { ts: Date.now(), zhipu, volc, deepseek, xf, history, daily };
 writeFileSync(dataPath, JSON.stringify(data));
 if (zhipu && !zhipu.error) console.log(`[智谱] OK ${zhipu.level} ` + zhipu.limits.map((l) => `${l.label}=${l.pct.toFixed(0)}%`).join(' '));
 else console.log('[智谱] 未采集成功：' + (zhipu?.error || '未知'));
