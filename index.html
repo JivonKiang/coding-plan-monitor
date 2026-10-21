@@ -85,6 +85,11 @@ section.t{margin-top:12px}
 </section>
 
 <section class="t card">
+  <h2>消耗速率与决策外推 <span class="badge" id="fcbadge">—</span></h2>
+  <div id="fcbody">加载中…</div>
+</section>
+
+<section class="t card">
   <h2>近 7 天 tokens（智谱）</h2>
   <div id="chart7">加载中…</div>
 </section>
@@ -221,6 +226,99 @@ function renderPace(d){
   badge.textContent=bt;
 }
 
+function renderForecast(d){
+  const el=$('fcbody'),badge=$('fcbadge');
+  const daily=d.daily||[];
+  const vM=d.volc&&d.volc.periods?d.volc.periods.find(p=>p.key==='monthly'):null;
+  const zW=d.zhipu&&d.zhipu.limits?d.zhipu.limits.find(l=>/周/.test(l.label)):null;
+  const x=d.xf,now=Date.now(),M_CYCLE=31;
+  const rate=(x&&x.cnyPerUsd)||0.1479;
+  const NB=s=>`<b style="font-variant-numeric:tabular-nums">${s}</b>`;
+  const small=s=>` <small style="color:var(--mut);font-weight:400">${s}</small>`;
+  const dstr=t=>new Date(t).toLocaleDateString('zh-CN',{month:'2-digit',day:'2-digit'});
+  // 近端日均速率：daily 末段 ≤4 条的增量 ÷ 真实时间差；值回落视为跨期重置，弃用
+  const slope=k=>{
+    const arr=daily.filter(o=>o[k]!=null).slice(-4);
+    if(arr.length<2)return null;
+    const f=arr[0],l=arr[arr.length-1],dd=(l.ts-f.ts)/86400e3;
+    if(dd<0.4||l[k]<f[k])return null;
+    return (l[k]-f[k])/dd;
+  };
+  const nDays=daily.length;
+  let html='',proj=null,vCap=vM?vM.cap:null;
+  // —— 火山：外推 11/19 结算总耗 → 续费档位决策 ——
+  if(vM&&vM.used!=null){
+    const mLeft=vM.reset?Math.max(0,(vM.reset-now)/86400e3):null;
+    const mElapsed=mLeft!=null?Math.max(0.3,M_CYCLE-mLeft):null;
+    let vRate=slope('vMonthly'),vSrc='近几天日均';
+    if(vRate==null&&mElapsed){vRate=vM.used/mElapsed;vSrc='本账期日均';}
+    if(vRate!=null&&mLeft!=null){
+      proj=Math.round(vRate*mLeft+vM.used);
+      const ov=proj-vM.cap;
+      const burst=vM.cap-vM.used>0?now+(vM.cap-vM.used)/vRate*86400e3:now;
+      html+=`<div class="krow"><span>月窗口消耗速率</span>${NB(fmt(Math.round(vRate))+' 次/天'+small('（'+vSrc+'）'))}</div>
+<div class="krow"><span>外推结算总耗（11/19）</span>${NB(fmt(proj)+' / '+fmt(vM.cap)+' 次')}</div>
+<div class="krow"><span>按此速率打爆日</span>${NB(vM.cap-vM.used<=0?'已触顶':dstr(burst))}</div>`;
+      if(ov>0){
+        let xfPerM=null;
+        if(x&&!x.error&&x.todayTokens>0)xfPerM=x.todayCost/x.todayTokens*1e6;
+        else if(x&&!x.error&&x.totalTokens>0)xfPerM=x.totalCost/x.totalTokens*1e6;
+        const xfCnyM=xfPerM!=null?xfPerM*rate:null;
+        let avgTk=null;
+        if(x&&!x.error&&x.todayRequests>0)avgTk=x.todayTokens/x.todayRequests;
+        else{const rec=daily.slice().reverse().find(o=>o.xfReq>0);if(rec)avgTk=rec.xfTk/rec.xfReq;}
+        const ovCost=xfCnyM!=null&&avgTk?ov*avgTk/1e6*xfCnyM:null;
+        const verdict=ovCost!=null?(190+ovCost>500?'升 Large（¥500/250,000 次）更划算':'保持 Pro + 溢出走 xf 更划算'):'先按 xf 兜底观察';
+        html+=`<div class="note"><b>预测：Pro 将打爆</b>——外推结算超出上限 ≈${fmt(ov)} 次${ovCost!=null?`，溢出走 xf 兜底 ≈¥${Math.round(ovCost)}，Pro ¥190 + ¥${Math.round(ovCost)} = ¥${Math.round(190+ovCost)} vs 升 Large ¥500/250,000 次 → ${verdict}`:''}。11/8 续费时按本预测定档。</div>`;
+      }else if(proj>=70000){
+        html+=`<div class="note"><b>月末吃紧</b>——外推贴近上限，高 token 低难度任务（文档/检索/批量）分流 xf（≈¥0.06/M tk），给月窗口留余量。</div>`;
+      }else{
+        html+=`<div class="note"><b>续 Pro 稳</b>——外推总耗低于 70,000 次判定线，11/19 结算后原档续费即可。</div>`;
+      }
+    }else html+=`<div class="krow"><span>月窗口外推</span>${NB('—'+small('（速率数据不足）'))}</div>`;
+  }
+  // —— xf：日均烧钱 → 余额可撑天数 + 月账单预估 ——
+  let xfDays=null,xfMonth=null;
+  if(x&&!x.error&&x.balance!=null){
+    const midnight=new Date();midnight.setHours(0,0,0,0);
+    const frac=Math.max(0.3,(now-midnight.getTime())/86400e3);
+    const prevXf=daily.length>=2?daily[daily.length-2].xfCost:null;
+    const tRate=x.todayCost>0?x.todayCost/frac:null;
+    let xRate=null,xSrc='';
+    if(tRate!=null&&(prevXf==null||tRate>=prevXf)){xRate=tRate;xSrc='今日至今·折全天';}
+    else if(prevXf>0){xRate=prevXf;xSrc='昨日全天';}
+    if(xRate>0){
+      xfDays=x.balance/xRate;xfMonth=xRate*30;
+      html+=`<div class="krow"><span>xf 消耗速率</span>${NB('$'+xRate.toFixed(2)+'/天'+small('（'+xSrc+'）'))}</div>
+<div class="krow"><span>xf 余额可撑</span>${NB(xfDays<1?'不足 1 天':Math.floor(xfDays)+' 天')}</div>
+<div class="krow"><span>xf 月账单预估</span>${NB('$'+Math.round(xfMonth)+small('（≈¥'+Math.round(xfMonth*rate)+'）'))}</div>`;
+      if(xfDays<14)html+=`<div class="note" style="color:var(--red)"><b>充值提醒：</b>余额按当前速率仅够 ≈${Math.floor(xfDays)} 天 → 尽快充值，避免兜底断档。</div>`;
+    }
+  }
+  // —— 智谱周窗口打爆预测 ——
+  if(zW&&zW.reset&&zW.used!=null){
+    const zdLeft=(zW.reset-now)/86400e3;
+    const zr=zW.used/Math.max(0.3,7-zdLeft);
+    const rem=zW.cap-zW.used;
+    const dl=rem>0?rem/zr:null;
+    html+=`<div class="krow"><span>智谱周窗口（已退）</span>${NB(dl!=null&&dl<Math.max(0,zdLeft)?'≈ '+dstr(now+dl*86400e3)+' 打爆'+small('（重置前）'):'重置前用不完'+small('（余量用完即止）'))}</div>`;
+  }
+  // —— 本月总账预估 ——
+  if(xfMonth!=null)html+=`<div class="krow"><span>本月总账预估</span>${NB('≈ ¥'+(190+Math.round(xfMonth*rate))+small('（火山 Pro ¥190 + xf ≈¥'+Math.round(xfMonth*rate)+'；xf 存量余额可抵扣）'))}</div>`;
+  if(nDays<3)html+=`<div class="note">速率预测基于 daily 快照与账期锚点，当前仅积累 ${nDays} 天，满 3 天后自动切换近端日均，判断更准。</div>`;
+  el.innerHTML=html||'<span class="err">数据缺失，无法外推</span>';
+  let bc='',bt='积累中';
+  if(proj!=null&&vCap!=null){
+    if(proj-vCap>0){bc='red';bt='Pro 将打爆';}
+    else if(proj>=70000){bc='amber';bt='月末吃紧';}
+    else{bc='green';bt='续 Pro 稳';}
+  }
+  badge.className='badge'+(bc?' '+bc:'');
+  badge.style.color=bc?'':'var(--green)';badge.style.borderColor=bc?'':'#14532d';
+  badge.textContent=bt;
+  window._fc={xfDays,xfMonth};
+}
+
 function renderAdvice(d){
   const z5=d.zhipu?.limits?.find(l=>/5小时/.test(l.label))?.pct??null;
   const zw=d.zhipu?.limits?.find(l=>/周/.test(l.label))?.pct??null;
@@ -241,6 +339,8 @@ function renderAdvice(d){
   if(zw!=null&&zw>=85)tips.push(['amber',`智谱周窗口已 ${zw.toFixed(0)}% → 已退订，余量用完即止，不再续费`]);
   if((d.deepseek&&!d.deepseek.error&&d.deepseek.total<=10))tips.push(['amber','DeepSeek 余额偏低（≤¥10）→ 充值前先用 xf 中转或套餐顶上']);
   if((d.xf&&!d.xf.error&&d.xf.balance<=34))tips.push(['amber','xf 余额偏低（折合 ≈¥5）→ 按量兜底能力受限']);
+  const fc=window._fc||{};
+  if(fc.xfDays!=null&&fc.xfDays<14)tips.push(['red',`xf 余额按当前速率仅够 ≈${Math.floor(fc.xfDays)} 天 → 尽快充值，避免兜底断档`]);
   $('tips').innerHTML=tips.map(([c,t])=>`<li><span class="dot" style="background:var(--${c})"></span><span>${t}</span></li>`).join('');
 }
 
@@ -318,6 +418,8 @@ function render(d){
   else $('chart7').innerHTML='<span class="err">7 天数据缺失</span>';
   // 节奏与续航预测
   renderPace(d);
+  // 消耗速率与决策外推
+  renderForecast(d);
   // 决策建议
   renderAdvice(d);
   // 成本分析与优化
