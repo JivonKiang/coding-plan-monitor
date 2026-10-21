@@ -499,13 +499,20 @@ function render(d){
   // DeepSeek / xf
   renderDeepseek(d.deepseek);
   renderXf(d.xf);
-  // 今日（xf 中转口径：今日 tokens / 调用 / 消费；智谱退订后无智谱口径）
-  const x=d.xf, xrate=(x&&x.cnyPerUsd)||0.1479;
+  // 今日（双口径：火山主力=5小时窗口用量估算；xf=中转实测；智谱已退订）
+  const x=d.xf, xrate=(x&&x.cnyPerUsd)||0.1479; // v 已在函数开头声明（d.volc）
+  const _n=new Date(),dts=`${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}`;
+  $('tdate').textContent=dts;
+  const vS=v&&v.periods?v.periods.find(p=>p.key==='session'):null;
+  const vW=v&&v.periods&&!v.error?v.periods.find(p=>p.key==='weekly'):null;
+  let tHtml='';
+  if(vS&&!v.error){
+    tHtml+=`<div class="big">${vS.pct.toFixed(1)}%</div><div class="sub">火山 5 小时窗口用量 · 已用约 ${fmt(vS.used)} / ${fmt(vS.cap)} tk（按容量反推估算）${vW?` · 本周窗口 ${vW.pct.toFixed(1)}%`:''}</div>`;
+  } else tHtml+=`<div class="sub" style="color:var(--red)">火山窗口数据缺失</div>`;
   if(x&&!x.error){
-    const _n=new Date(),dts=`${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}`;
-    $('tdate').textContent=dts;
-    $('tbody').innerHTML=`<div class="big">${fmt(x.todayTokens)}</div><div class="sub">tokens · ${fmt(x.todayRequests)} 次调用 · 消费 $${(x.todayCost||0).toFixed(2)} ≈ ¥${((x.todayCost||0)*xrate).toFixed(2)}（xf 中转口径）</div>`;
-  } else $('tbody').innerHTML='<span class="err">今日数据缺失</span>';
+    tHtml+=`<div class="big" style="margin-top:10px">${fmt(x.todayTokens)}</div><div class="sub">xf 今日 tokens · ${fmt(x.todayRequests)} 次调用 · $${(x.todayCost||0).toFixed(2)} ≈ ¥${((x.todayCost||0)*xrate).toFixed(2)}（xf 中转口径）</div>`;
+  }
+  $('tbody').innerHTML=tHtml||'<span class="err">今日数据缺失</span>';
   // 节奏与续航预测
   renderPace(d);
   // 消耗速率与决策外推
