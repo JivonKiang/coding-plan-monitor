@@ -174,7 +174,7 @@ section.t,div.grid{scroll-margin-top:8px}
     <tr><td>智谱 GLM</td><td>包年（已退）</td><td>已申请退款，余量用完即止</td><td>已退出</td></tr>
   </table>
   <div class="note">
-    <b>决策原则：</b>火山 Pro 是唯一主力套餐（固定费已付，用满边际成本≈0）；月窗口余量 &lt;20% 前把文档/检索/批量校验类任务分流到 xf（≈¥0.06/M tk）或 GLM-4.7-Flash（免费）。按量 API 每次调用都是真金白银，仅在 ①窗口 ≥90% 被限流、②需要更强模型、③长上下文重活 时启用。<b>两个决策点：</b>11/8 活动结束（续费恢复 ¥200/月，邀新 9.5 折可叠加）；11/19 月周期结算（总消耗 &lt;70,000 次 → 续 Pro；持续打满 90,000 次 → 先加强 xf 分流，仍超支再评估企业版；Large ¥500/月 250,000 为 Agent Plan 的 AFP 燃料值而非请求次数，按 token 折算 ~3.5 万次/月，纯编程不适用）。
+    <b>决策原则：</b>火山 Pro 是唯一主力套餐（固定费已付，用满边际成本≈0）；月窗口 90,000 次是已付费弹药，优先全部用满（边际成本≈0）。按量 API 每次调用都是真金白银，仅在 ①5h/月窗口撞限被限流、②需要更强模型、③长上下文重活 时启用——溢出顺序 xf（≈¥0.06/M tk）→ DeepSeek。<b>两个决策点：</b>11/8 活动结束（续费恢复 ¥200/月，邀新 9.5 折可叠加）；11/19 月周期结算（总消耗 &lt;70,000 次 → 续 Pro；持续打满 90,000 次 → 撞限时段溢出走 xf，仍不够再评估企业版；Large ¥500/月 250,000 为 Agent Plan 的 AFP 燃料值而非请求次数，按 token 折算 ~3.5 万次/月，纯编程不适用）。
   </div>
 </section>
 
@@ -342,7 +342,7 @@ function renderForecast(d){
         verdict=ovCost!=null?(190+ovCost>500?'溢出偏高 → 加强分流（Auto 降系数/xf/免费模型），仍超支再评估企业版':'保持 Pro + 溢出走 xf 更划算'):'先按 xf 兜底观察';
         html+=`<div class="note"><b>预测：Pro 将打爆</b>——外推结算超出上限 ≈${fmt(ov)} 次${ovCost!=null?`，溢出走 xf 兜底 ≈¥${Math.round(ovCost)}，Pro ¥190 + ¥${Math.round(ovCost)} = ¥${Math.round(190+ovCost)} → ${verdict}（Large ¥500=250,000 AFP 燃料值非次数，折算 ~3.5 万次/月，编程不适用）`:''}。11/8 续费时按本预测定档。</div>`;
       }else if(proj>=70000){
-        html+=`<div class="note"><b>月末吃紧</b>——外推贴近上限，高 token 低难度任务（文档/检索/批量）分流 xf（≈¥0.06/M tk），给月窗口留余量。</div>`;
+        html+=`<div class="note"><b>月末吃紧</b>——外推贴近上限。套餐内继续照常用满（边际成本≈0），撞限时段溢出走 xf（≈¥0.06/M tk）；仅当月末有关键任务不能断，才提前把低难度任务让位给 xf/免费模型。</div>`;
       }else{
         html+=`<div class="note"><b>续 Pro 稳</b>——外推总耗低于 70,000 次判定线，11/19 结算后原档续费即可。</div>`;
       }
@@ -424,7 +424,7 @@ function renderVerdict(d){
   const col=fc.bc?'var(--'+fc.bc+')':(fc.bt==='积累中'?'var(--mut)':'var(--green)');
   let why='';
   if(fc.bt==='Pro 将打爆')why=`按 ${fmt(fc.vRate)} 次/天（${fc.vSrc}）外推 11/19 结算 <b>${fmt(fc.proj)}</b> / ${fmt(fc.vCap)} 次，预计 <b>${fc.burst}</b> 触顶；溢出 ≈${fmt(fc.ov)} 次${fc.ovCost!=null?`，xf 兜底 ≈¥${Math.round(fc.ovCost)} → ${fc.verdict}`:''}。`;
-  else if(fc.bt==='月末吃紧')why=`按 ${fmt(fc.vRate)} 次/天（${fc.vSrc}）外推 11/19 结算 <b>${fmt(fc.proj)}</b> / ${fmt(fc.vCap)} 次，贴近 70,000 判定线，需给月窗口留余量。`;
+  else if(fc.bt==='月末吃紧')why=`按 ${fmt(fc.vRate)} 次/天（${fc.vSrc}）外推 11/19 结算 <b>${fmt(fc.proj)}</b> / ${fmt(fc.vCap)} 次，贴近 70,000 判定线；套餐照常用满，撞限时段溢出走 xf。`;
   else if(fc.bt==='续 Pro 稳')why=`按 ${fmt(fc.vRate)} 次/天（${fc.vSrc}）外推 11/19 结算 <b>${fmt(fc.proj)}</b> / ${fmt(fc.vCap)} 次，低于 70,000 判定线，无需升档。`;
   else why=`外推数据不足（速率或账期锚点缺失），先看「决策外推」节，数据积累后自动出结论。`;
   const acts=[];
@@ -433,7 +433,7 @@ function renderVerdict(d){
   if(fc.bt==='Pro 将打爆')acts.push(['red','11/8 续 Pro，溢出全走 xf',`外推 ${fmt(fc.proj)} 次 = 上限 ${fmt(fc.vCap)} 的 ${(fc.proj/fc.vCap).toFixed(1)} 倍${fc.ovCost!=null?'，Pro ¥190 + xf 兜底 ≈¥'+Math.round(190+fc.ovCost):''}（Large ¥500 为 Agent Plan AFP 燃料值非次数，编程不适用）`]);
   else if(fc.bt==='月末吃紧')acts.push(['amber','11/8 续 Pro + 开「超额后付费」设上限 ¥50',`外推 ${fmt(fc.proj)} 次贴近上限，保险动作防爆发日被限流`]);
   else if(fc.bt==='续 Pro 稳')acts.push(['green','11/8 原档续 Pro（¥190）',`外推仅 ${fmt(fc.proj)} / ${fmt(fc.vCap)} 次，升档不划算`]);
-  if(fc.bt!=='续 Pro 稳'||(vmPct!=null&&vmPct>=60))acts.push(['amber','高 token 低难度任务立即分流','文档/检索/批量校验走 xf（≈¥0.06/M tk）或 GLM-4.7-Flash（免费），火山只留给核心编码']);
+  if(fc.bt==='Pro 将打爆')acts.push(['amber','溢出时段切 xf/免费模型','套餐内继续用满；5h 或月窗口撞限的时段，文档/检索/批量校验走 xf（≈¥0.06/M tk）或 GLM-4.7-Flash（免费），窗口重置后回火山']);
   const hot=[];
   if(vs&&vs.pct!=null&&vs.pct>=90)hot.push('火山 5h '+vs.pct.toFixed(0)+'%');
   if(z5&&z5.pct!=null&&z5.pct>=90)hot.push('智谱 5h '+z5.pct.toFixed(0)+'%');
@@ -475,8 +475,8 @@ function renderCost(d){
     <ul class="tips">
     <li><span class="dot" style="background:var(--green)"></span><span><b>主力用满：</b>火山 Pro 固定费已付，用满边际成本≈0；月窗口 90,000 次就是本账期总弹药，不用白不用。</span></li>
     <li><span class="dot" style="background:var(--blue)"></span><span><b>溢出顺序：</b>火山 5h 窗口 ≥90% → 先走 xf（历史均价 ≈¥0.06/M tk，最便宜）→ 需要官方账单、更稳时走 DeepSeek；GLM-4.7-Flash（免费）与 DeepSeek v4-flash 适合低难度批量任务。</span></li>
-    <li><span class="dot" style="background:var(--amber)"></span><span><b>月窗口分流：</b>月窗口余量 &lt;20% → 文档/检索/批量校验类任务全部改走 xf 或免费模型，火山只留给核心编码；xf 余额 ≤$340（≈¥50）、DeepSeek ≤¥30 时安排充值。</span></li>
-    <li><span class="dot" style="background:var(--blue)"></span><span><b>两个决策点：</b>①11/8 活动结束，续费恢复 ¥200/月（邀新 9.5 折可叠加）；②11/19 月周期结算——总消耗 &lt;70,000 次 → 续 Pro 够用；持续打满 90,000 次 → 先加强 xf 分流，仍超支再评估企业版（Large ¥500/月 250,000 是 Agent Plan 的 AFP 燃料值而非请求次数，按 token 折算仅 ~3.5 万次/月，纯编程不适用）。</span></li>
+    <li><span class="dot" style="background:var(--amber)"></span><span><b>月窗口先用满：</b>月窗口是已付费弹药，正常全部吃满，仅撞限时段把溢出任务切 xf/免费模型；只有月末外推将打爆且有关键任务不能断时，才提前让低难度任务让位。xf 余额 ≤$340（≈¥50）、DeepSeek ≤¥30 时安排充值。</span></li>
+    <li><span class="dot" style="background:var(--blue)"></span><span><b>两个决策点：</b>①11/8 活动结束，续费恢复 ¥200/月（邀新 9.5 折可叠加）；②11/19 月周期结算——总消耗 &lt;70,000 次 → 续 Pro 够用；持续打满 90,000 次 → 撞限时段溢出走 xf，仍不够再评估企业版（Large ¥500/月 250,000 是 Agent Plan 的 AFP 燃料值而非请求次数，按 token 折算仅 ~3.5 万次/月，纯编程不适用）。</span></li>
     <li><span class="dot" style="background:var(--green)"></span><span><b>保险动作：</b>在火山控制台开启「超额后付费」并设账单上限 ¥50/月——套餐用尽自动切按量，避免爆发日被限流卡住干活。</span></li>
     </ul>
     <div class="note">口径说明：xf 单价优先今日实测（今日消费 ÷ 今日 tokens），无今日数据时回退历史均价（累计消费 ÷ 累计 tokens）；汇率按充值比例 ¥300 = $2028（$1 ≈ ¥${rate}），可在本机 config.json 的 xf.cnyPerUsd 修改；火山单价按 ¥200 档用满摊薄，实际首两月更低。</div>`;
