@@ -112,13 +112,18 @@ const toMs = (v) => {
 
 function fetchVolc() {
   const edition = cfg.volcEdition === 'Lite' ? 'Lite' : 'Pro';
-  const p = spawnSync('arkcli', ['usage', 'plan', '--format', 'json'], { shell: true, encoding: 'utf8' });
-  const out = (p.stdout || '') + (p.stderr || '');
-  let j;
-  try { j = JSON.parse(out.slice(out.indexOf('{'))); }
-  catch { throw new Error('arkcli 输出无法解析（可能未登录，运行 arkcli auth login）: ' + out.slice(0, 150)); }
+  // 只 parse stdout（stderr 混入警告会污染拼接文本导致解析失败），失败重试 2 次应对链路抖动
+  let j = null, lastErr = '';
+  for (let i = 0; i < 3 && !j; i++) {
+    if (i) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2000);
+    const p = spawnSync('arkcli', ['usage', 'plan', '--format', 'json'], { shell: true, encoding: 'utf8' });
+    const so = p.stdout || '';
+    try { j = JSON.parse(so.slice(so.indexOf('{'))); }
+    catch { lastErr = 'stdout=' + so.slice(0, 120) + ' stderr=' + (p.stderr || '').slice(0, 120); }
+  }
+  if (!j) throw new Error('arkcli 输出无法解析（重试 3 次失败，可能未登录，运行 arkcli auth login）: ' + lastErr);
   const item = (j.items || [])[0];
-  if (!item) throw new Error('arkcli 未返回用量: ' + out.slice(0, 150));
+  if (!item) throw new Error('arkcli 未返回用量: ' + JSON.stringify(j).slice(0, 150));
   const caps = VOLC_CAPS[edition];
   return {
     edition,
