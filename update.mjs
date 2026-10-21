@@ -238,13 +238,13 @@ async function fetchXf() {
 }
 
 // ---------- 主流程 ----------
-const zhipu = await fetchZhipu();
-const volc = fetchVolc();
+const zhipu = await safe(fetchZhipu, '智谱');
+const volc = await safe(fetchVolc, '火山');
 const deepseek = await safe(fetchDeepseek, 'DeepSeek');
 const xf = await safe(fetchXf, 'xf');
 
-const zWorstPct = Math.max(...zhipu.limits.map((l) => l.pct));
-const vSessionPct = volc.periods.find((p) => p.key === 'session')?.pct ?? null;
+const zWorstPct = zhipu?.limits?.length ? Math.max(...zhipu.limits.map((l) => l.pct)) : null;
+const vSessionPct = volc?.periods?.find((p) => p.key === 'session')?.pct ?? null;
 
 // history：追加本次快照，保留最近 200 条
 let history = [];
@@ -257,8 +257,10 @@ history = history.slice(-200);
 
 const data = { ts: Date.now(), zhipu, volc, deepseek, xf, history };
 writeFileSync(dataPath, JSON.stringify(data));
-console.log(`[智谱] OK ${zhipu.level} ` + zhipu.limits.map((l) => `${l.label}=${l.pct.toFixed(0)}%`).join(' '));
-console.log(`[火山] OK ${volc.edition} ` + volc.periods.map((p) => `${p.key}=${p.pct.toFixed(1)}%`).join(' '));
+if (zhipu && !zhipu.error) console.log(`[智谱] OK ${zhipu.level} ` + zhipu.limits.map((l) => `${l.label}=${l.pct.toFixed(0)}%`).join(' '));
+else console.log('[智谱] 未采集成功：' + (zhipu?.error || '未知'));
+if (volc && !volc.error) console.log(`[火山] OK ${volc.edition} ` + volc.periods.map((p) => `${p.key}=${p.pct.toFixed(1)}%`).join(' '));
+else console.log('[火山] 未采集成功：' + (volc?.error || '未知'));
 if (deepseek && !deepseek.error) console.log(`[DeepSeek] OK 余额 ¥${deepseek.total.toFixed(2)}（可用=${deepseek.isAvailable}）`);
 else if (deepseek?.error) console.log('[DeepSeek] 未采集成功');
 else console.log('[DeepSeek] 未配置（config.json 的 deepseekKey 为空，跳过）');
@@ -279,5 +281,13 @@ if (!staged) { console.log('数据无变化，跳过推送'); process.exit(0); }
 const now = new Date();
 const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 git(['commit', '-m', `"snapshot ${stamp}"`]);
-git(['push']);
-console.log('✓ 已推送，Pages 稍后自动更新');
+// GitHub 直连不稳定（间歇性连接重置），push 失败重试；最终失败也不报错，commit 已保留待下轮推
+let pushed = false;
+for (let i = 1; i <= 6 && !pushed; i++) {
+  try { git(['push']); pushed = true; }
+  catch (e) {
+    console.log(`push 第${i}次失败：${String(e.message).replace(/\n/g, ' ').slice(0, 120)}${i < 6 ? '，5 秒后重试' : '（放弃，commit 已保留，下轮计划任务会再推）'}`);
+    if (i < 6) await new Promise((r) => setTimeout(r, 5000));
+  }
+}
+if (pushed) console.log('✓ 已推送，Pages 稍后自动更新');
