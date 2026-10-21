@@ -271,7 +271,8 @@ else console.log('[xf] 未配置（config.json 的 xf 段为空，跳过）');
 // ---------- 推送 ----------
 if (NO_PUSH) { console.log('（--no-push：仅本地更新 data.json）'); process.exit(0); }
 const git = (args) => {
-  const r = spawnSync('git', args, { shell: true, encoding: 'utf8', cwd: ROOT });
+  // GIT_TERMINAL_PROMPT=0：非交互上下文（计划任务 S4U）拿不到凭据时快速失败，不卡终端提示
+  const r = spawnSync('git', args, { shell: true, encoding: 'utf8', cwd: ROOT, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } });
   if (r.status !== 0) throw new Error('git ' + args.join(' ') + ' 失败: ' + ((r.stderr || '') + (r.stdout || '')).slice(0, 300));
   return r.stdout;
 };
