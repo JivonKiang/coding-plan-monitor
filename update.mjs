@@ -283,28 +283,46 @@ const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0'
 git(['commit', '-m', `"snapshot ${stamp}"`]);
 // ---------- push 自愈：失败自动轮换 hosts 里的 GitHub IP ----------
 // 本机到 GitHub 直连属间歇性阻断（TLS 层被重置，同一 IP 时通时断）。
-// 策略：每次 push 失败 → 轮换 hosts 中 github.com 的 IP → flushdns → 重试；
-// 需要计划任务以最高权限运行（写 hosts 需管理员）。最终失败也不报错，commit 已保留待下轮推。
+// 策略：push 前预检（当前 IP 不通则探测换新）；push 失败后用 curl 快速探测（3s/个）找池中可用 IP
+// 换入 hosts + flushdns 再重试，找不到才盲轮换。需要计划任务以最高权限运行（写 hosts 需管理员）。
+// 最终失败也不报错，commit 已保留待下轮推。
 const GH_IPS = [
   '140.82.112.3', '140.82.112.4', '140.82.113.3', '140.82.113.4',
   '140.82.114.3', '140.82.114.4', '140.82.116.3', '140.82.116.4',
   '20.205.243.166', '20.27.177.113',
 ];
 const HOSTS = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'drivers', 'etc', 'hosts');
-function rotateHosts() {
+function ghIpInHosts() {
+  try { const m = readFileSync(HOSTS, 'utf8').match(/^(\d{1,3}(?:\.\d{1,3}){3})(\s+github\.com)/m); return m ? m[1] : null; }
+  catch { return null; }
+}
+function setHostsIp(ip) {
   try {
     const raw = readFileSync(HOSTS, 'utf8');
-    const m = raw.match(/^(\d{1,3}(?:\.\d{1,3}){3})(\s+github\.com)/m);
-    if (!m) return 'hosts 无 github.com 条目，跳过轮换';
-    const idx = GH_IPS.indexOf(m[1]);
-    const next = GH_IPS[(idx + 1) % GH_IPS.length];
-    const updated = raw
-      .replace(/^(\d{1,3}(?:\.\d{1,3}){3})(\s+github\.com)/m, next + '$2')
-      .replace(/^(\d{1,3}(?:\.\d{1,3}){3})(\s+www\.github\.com)/m, next + '$2');
-    writeFileSync(HOSTS, updated, 'utf8');
+    if (!/^(\d{1,3}(?:\.\d{1,3}){3})(\s+github\.com)/m.test(raw)) return 'hosts 无 github.com 条目，跳过换 IP';
+    writeFileSync(HOSTS, raw
+      .replace(/^(\d{1,3}(?:\.\d{1,3}){3})(\s+github\.com)/m, ip + '$2')
+      .replace(/^(\d{1,3}(?:\.\d{1,3}){3})(\s+www\.github\.com)/m, ip + '$2'), 'utf8');
     spawnSync('ipconfig', ['/flushdns'], { shell: true });
-    return `${m[1]} → ${next}`;
-  } catch (e) { return '轮换失败：' + String(e.message || e).slice(0, 80); }
+    return ip;
+  } catch (e) { return '写 hosts 失败：' + String(e.message || e).slice(0, 80); }
+}
+function probeIp(ip) {
+  try {
+    const r = spawnSync('curl.exe', ['-s', '-o', 'NUL', '-w', '%{http_code}', '--resolve', 'github.com:443:' + ip, 'https://github.com', '-m', '3'], { shell: true, encoding: 'utf8', timeout: 4500 });
+    return (r.stdout || '').trim() === '200';
+  } catch { return false; }
+}
+function findGoodIp() {
+  const cur = ghIpInHosts();
+  const order = cur ? [cur, ...GH_IPS.filter((x) => x !== cur)] : [...GH_IPS];
+  for (const ip of order) if (probeIp(ip)) return ip;
+  return null;
+}
+// 预检：当前 hosts IP 探测不通就直接换成可用 IP，避免在必败 IP 上烧 20s 超时
+{
+  const pre = findGoodIp();
+  if (pre && pre !== ghIpInHosts()) console.log('[push 预检] 当前 IP ' + ghIpInHosts() + ' 不通，已换为探测可用 IP ' + pre);
 }
 let pushed = false;
 const pushT0 = Date.now();
@@ -313,8 +331,9 @@ for (let i = 1; i <= 6 && !pushed; i++) {
   catch (e) {
     const msg = String(e.message).replace(/\n/g, ' ').slice(0, 120);
     if (Date.now() - pushT0 > 150000) { console.log(`push 第${i}次失败（${msg}）；重试总时长超 150s 预算，放弃（commit 已保留，下轮再推）`); break; }
-    const rot = rotateHosts();
-    console.log(`push 第${i}次失败：${msg}；已轮换 GitHub IP：${rot}，5 秒后重试`);
+    const good = findGoodIp();
+    const rot = good ? setHostsIp(good) : setHostsIp(GH_IPS[(GH_IPS.indexOf(ghIpInHosts()) + 1) % GH_IPS.length]);
+    console.log(`push 第${i}次失败：${msg}；探测换 GitHub IP：${rot}，5 秒后重试`);
     if (i < 6) await new Promise((r) => setTimeout(r, 5000));
   }
 }
