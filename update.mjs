@@ -23,7 +23,6 @@ const pad = (n) => String(n).padStart(2, '0');
 
 // ---------- 配置 ----------
 const cfg = JSON.parse(readFileSync(join(ROOT, 'config.json'), 'utf8'));
-if (!cfg.zhipuKey) { console.error('✗ config.json 缺少 zhipuKey'); process.exit(1); }
 
 // 可选平台采集失败不中断整体快照（返回 {error} 由页面展示；返回 null 表示未配置）
 async function safe(fn, name) {
@@ -40,6 +39,7 @@ async function zhipuGet(path) {
 }
 
 async function fetchZhipu() {
+  if (!cfg.zhipuKey) return null; // 已退订/未配置 → 返回 null，页面显示已退订态
   const q = await zhipuGet('/api/monitor/usage/quota/limit');
   const limits = (q.limits || []).map((l) => ({
     label: { 3: '5小时窗口', 6: '每周窗口' }[l.unit] || l.type || '?',
@@ -276,7 +276,8 @@ daily = daily.slice(-60);
 const data = { ts: Date.now(), zhipu, volc, deepseek, xf, history, daily };
 writeFileSync(dataPath, JSON.stringify(data));
 if (zhipu && !zhipu.error) console.log(`[智谱] OK ${zhipu.level} ` + zhipu.limits.map((l) => `${l.label}=${l.pct.toFixed(0)}%`).join(' '));
-else console.log('[智谱] 未采集成功：' + (zhipu?.error || '未知'));
+else if (zhipu?.error) console.log('[智谱] 未采集成功');
+else console.log('[智谱] 未配置（config.json 的 zhipuKey 为空，跳过）');
 if (volc && !volc.error) console.log(`[火山] OK ${volc.edition} ` + volc.periods.map((p) => `${p.key}=${p.pct.toFixed(1)}%`).join(' '));
 else console.log('[火山] 未采集成功：' + (volc?.error || '未知'));
 if (deepseek && !deepseek.error) console.log(`[DeepSeek] OK 余额 ¥${deepseek.total.toFixed(2)}（可用=${deepseek.isAvailable}）`);

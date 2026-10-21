@@ -105,7 +105,6 @@ section.t,div.grid{scroll-margin-top:8px}
   <a href="#sec-today" data-sec="sec-today">今日</a>
   <a href="#sec-pace" data-sec="sec-pace">节奏</a>
   <a href="#sec-forecast" data-sec="sec-forecast">外推</a>
-  <a href="#sec-chart" data-sec="sec-chart">近 7 天</a>
   <a href="#sec-advice" data-sec="sec-advice">建议</a>
   <a href="#sec-trend" data-sec="sec-trend">趋势</a>
   <a href="#sec-cost" data-sec="sec-cost">成本</a>
@@ -120,7 +119,6 @@ section.t,div.grid{scroll-margin-top:8px}
     <a href="#sec-today" data-sec="sec-today"><i class="sdot"></i>今日消耗</a>
     <a href="#sec-pace" data-sec="sec-pace"><i class="sdot"></i>节奏续航</a>
     <a href="#sec-forecast" data-sec="sec-forecast"><i class="sdot"></i>决策外推</a>
-    <a href="#sec-chart" data-sec="sec-chart"><i class="sdot"></i>近 7 天</a>
     <a href="#sec-advice" data-sec="sec-advice"><i class="sdot"></i>建议与性价比</a>
     <a href="#sec-trend" data-sec="sec-trend"><i class="sdot"></i>历史趋势</a>
     <a href="#sec-cost" data-sec="sec-cost"><i class="sdot"></i>成本分析</a>
@@ -137,7 +135,7 @@ section.t,div.grid{scroll-margin-top:8px}
 </section>
 
 <div class="grid" id="sec-platforms">
-  <div class="card" id="zcard"><h2>智谱 GLM <span class="badge blue" id="zlevel">—</span><span class="badge red">已申请退款</span></h2><div id="zbody">加载中…</div></div>
+  <div class="card" id="zcard"><h2>智谱 GLM <span class="badge red">已退订</span></h2><div id="zbody">加载中…</div></div>
   <div class="card" id="vcard"><h2>火山方舟 <span class="badge orange" id="vedition">—</span></h2><div id="vbody">加载中…</div></div>
   <div class="card" id="dscard"><h2>DeepSeek 官方 <span class="badge red">按量</span></h2><div id="dsbody">加载中…</div></div>
   <div class="card" id="xfcard"><h2>xf 中转站 <span class="badge purple">按量</span></h2><div id="xfbody">加载中…</div></div>
@@ -158,11 +156,6 @@ section.t,div.grid{scroll-margin-top:8px}
   <div id="fcbody">加载中…</div>
 </section>
 
-<section class="t card" id="sec-chart">
-  <h2>近 7 天 tokens（智谱）</h2>
-  <div id="chart7">加载中…</div>
-</section>
-
 <section class="t card" id="sec-advice">
   <h2>性价比与费用决策</h2>
   <ul class="tips" id="tips"></ul>
@@ -171,7 +164,7 @@ section.t,div.grid{scroll-margin-top:8px}
     <tr><td>火山方舟</td><td>订阅</td><td>Pro 首两月 ¥49.9 → 之后 ¥200/月</td><td>当前主力</td></tr>
     <tr><td>xf 中转</td><td>按量充值</td><td>历史均价 ≈¥0.06/M tk</td><td>一级兜底（最便宜）</td></tr>
     <tr><td>DeepSeek 官方</td><td>按量</td><td>flash 1/2 · pro 3/6 元每M</td><td>二级兜底（最稳）</td></tr>
-    <tr><td>智谱 GLM</td><td>包年（已退）</td><td>已申请退款，余量用完即止</td><td>已退出</td></tr>
+    <tr><td>智谱 GLM</td><td>包年（已退订）</td><td>年费已退，停止监测</td><td>已退出</td></tr>
   </table>
   <div class="note">
     <b>决策原则：</b>火山 Pro 是唯一主力套餐（固定费已付，用满边际成本≈0）；月窗口 90,000 次是已付费弹药，优先全部用满（边际成本≈0）。按量 API 每次调用都是真金白银，仅在 ①5h/月窗口撞限被限流、②需要更强模型、③长上下文重活 时启用——溢出顺序 xf（≈¥0.06/M tk）→ DeepSeek。<b>两个决策点：</b>11/8 活动结束（续费恢复 ¥200/月，邀新 9.5 折可叠加）；11/19 月周期结算（总消耗 &lt;70,000 次 → 续 Pro；持续打满 90,000 次 → 撞限时段溢出走 xf，仍不够再评估企业版；Large ¥500/月 250,000 为 Agent Plan 的 AFP 燃料值而非请求次数，按 token 折算 ~3.5 万次/月，纯编程不适用）。
@@ -192,14 +185,14 @@ section.t,div.grid{scroll-margin-top:8px}
   <h2>GitHub 接入配置</h2>
   <div class="krow"><b>站点</b><span><a href="https://jivonkiang.github.io/coding-plan-monitor/" target="_blank">jivonkiang.github.io/coding-plan-monitor</a></span></div>
   <div class="krow"><b>仓库</b><span><a href="https://github.com/JivonKiang/coding-plan-monitor" target="_blank">JivonKiang/coding-plan-monitor</a></span></div>
-  <div class="krow"><b>自动更新</b><span>本机计划任务每 2 分钟运行 <code>node update.mjs</code> → 采集 4 平台 → push → Pages 自动重建</span></div>
+  <div class="krow"><b>自动更新</b><span>本机计划任务每 2 分钟运行 <code>node update.mjs</code> → 采集 3 平台 → push → Pages 自动重建</span></div>
   <div class="krow"><b>页面刷新</b><span>每 2 分钟自动拉取；点右上「⟳ 刷新」立即更新；数据层同样是 2 分钟节拍，两者对齐</span></div>
   <div class="krow"><b>凭证安全</b><span>config.json / xf_tokens.json 仅存本机且被 .gitignore 排除；公开的只有余额/用量数字</span></div>
   <div class="note">本机另有 serve.mjs（tailnet 内 /plan 路径）提供同一面板的私有镜像，公网页面为主入口。新增平台只需在本机 config.json 填入凭证，下个采集周期自动生效。</div>
 </section>
 
 <footer>
-  数据来源：智谱开放平台 API · 火山方舟 arkcli · DeepSeek Balance API · sub2api 面板 API（bw.gsykj.com），由本机 <code>update.mjs</code> 每 2 分钟采集并推送。
+  数据来源：火山方舟 arkcli · DeepSeek Balance API · sub2api 面板 API（bw.gsykj.com），由本机 <code>update.mjs</code> 每 2 分钟采集并推送。智谱已退订下线（2026-10）。
 </footer>
 </main>
 </div>
@@ -249,14 +242,14 @@ function renderXf(x){
 function renderPace(d){
   const el=$('pacebody'),badge=$('pacebadge');
   const z=d.zhipu,v=d.volc;
-  if(!z||!z.byModelDaily||!z.limits||!v||!v.periods){el.innerHTML='<span class="err">数据缺失，无法测算节奏</span>';badge.textContent='—';return}
-  const days=z.days||[];
-  const perDay=days.map((_,i)=>Object.values(z.byModelDaily).reduce((s,m)=>s+(m.daily[i]||0),0));
+  if(!v||!v.periods){el.innerHTML='<span class="err">数据缺失，无法测算节奏</span>';badge.textContent='—';return}
+  const days=z&&z.days||[];
+  const perDay=days.map((_,i)=>Object.values(z&&z.byModelDaily||{}).reduce((s,m)=>s+(m.daily[i]||0),0));
   const TH=10e6;
   const bursts=perDay.map((t,i)=>({t,d:days[i]})).filter(o=>o.t>=TH);
   const nB=bursts.length;
   const bAvg=nB?bursts.reduce((s,o)=>s+o.t,0)/nB:0;
-  const zW=z.limits.find(l=>/周/.test(l.label));
+  const zW=z&&z.limits?z.limits.find(l=>/周/.test(l.label)):null;
   const tkPerCred=(zW&&zW.used>0)?z.totalTokens7d/zW.used:null;
   const vM=v.periods.find(p=>p.key==='monthly'),vW=v.periods.find(p=>p.key==='weekly');
   const perBurst=(nB&&vM&&vM.used>0)?vM.used/nB:null;
@@ -400,7 +393,7 @@ function renderAdvice(d){
   if(vs!=null&&vs>=90)hot.push('火山 5h '+vs.toFixed(0)+'%');
   if(z5!=null&&z5>=90)hot.push('智谱 5h '+z5.toFixed(0)+'%');
   if(hot.length)tips.push(['red',`高峰窗口接近上限（${hot.join('、')}）→ 切 xf（一级兜底）或 DeepSeek（二级兜底），窗口重置后回火山 Pro`]);
-  else if((z5!=null&&z5>=70)||(vs!=null&&vs>=70))tips.push(['amber',`窗口用量偏高（火山 5h ${vs?.toFixed(0)??'—'}% / 智谱 5h ${z5?.toFixed(0)??'—'}%）→ 非紧急任务错峰，留意上方重置倒计时`]);
+  else if((z5!=null&&z5>=70)||(vs!=null&&vs>=70))tips.push(['amber',`窗口用量偏高（火山 5h ${vs?.toFixed(0)??'—'}%${z5!=null?' / 智谱 5h '+z5.toFixed(0)+'%':''}）→ 非紧急任务错峰，留意上方重置倒计时`]);
   else tips.push(['green','余量充足 → 优先用火山 Pro（固定费已付，边际成本≈0），按量 API 仅作兜底']);
   if(pace.perWeekCap!=null&&pace.perWeekCap<3)tips.push(['red',`月窗口吃紧（按当前节奏每周最多再容纳 ≈${pace.perWeekCap.toFixed(1)} 个爆发日）→ 高 token 低难度任务立即分流 xf / GLM-4.7-Flash，并开启「超额后付费」设上限 ¥50 做保险`]);
   if(vm!=null&&vm>=60)tips.push(['amber',`火山月窗口已 ${vm.toFixed(0)}% → 分流升级：文档/检索/批量类全部走 xf（≈¥0.06/M tk），火山只留给核心编码`]);
@@ -471,7 +464,7 @@ function renderCost(d){
     <tr><td>火山方舟 Pro</td><td>订阅固定（主力）</td><td>≈ ¥0.0022/次（用满摊薄）</td><td>¥49.9 首两月 → ¥200</td></tr>
     <tr><td>xf 中转</td><td>按量（一级兜底）</td><td>${xfCny!=null?'≈ ¥'+xfCny.toFixed(2)+'/M tk（历史均价）':'—'}</td><td>按用量 · 余额 $${x&&!x.error?x.balance:'—'}</td></tr>
     <tr><td>DeepSeek 官方</td><td>按量（二级兜底）</td><td>flash ¥1/2 · pro ¥3/6 每M</td><td>按用量 · 余额 ¥${d.deepseek&&!d.deepseek.error?d.deepseek.total:'—'}</td></tr>
-    <tr><td>智谱 GLM</td><td>包年（退款中）</td><td>余量用完即止</td><td>¥0（已退）</td></tr></table>
+    <tr><td>智谱 GLM</td><td>包年（已退订）</td><td>停止监测</td><td>¥0</td></tr></table>
     <ul class="tips">
     <li><span class="dot" style="background:var(--green)"></span><span><b>主力用满：</b>火山 Pro 固定费已付，用满边际成本≈0；月窗口 90,000 次就是本账期总弹药，不用白不用。</span></li>
     <li><span class="dot" style="background:var(--blue)"></span><span><b>溢出顺序：</b>火山 5h 窗口 ≥90% → 先走 xf（历史均价 ≈¥0.06/M tk，最便宜）→ 需要官方账单、更稳时走 DeepSeek；GLM-4.7-Flash（免费）与 DeepSeek v4-flash 适合低难度批量任务。</span></li>
@@ -493,12 +486,11 @@ function updateUpd(){
 function render(d){
   const z=d.zhipu,v=d.volc;
   lastTs=d.ts||0;updateUpd();
-  // 智谱
+  // 智谱（已退订，zhipu=null 时显示退订态；旧快照残留数据时仍可展示）
   if(z&&z.limits){
-    $('zlevel').textContent=(z.level||'Lite').toUpperCase();
     $('zbody').innerHTML=z.limits.map(winRow).join('')+
       `<div class="meta">近7天 ${fmt(z.totalTokens7d)} tokens / ${fmt(z.totalCalls7d)} 次调用</div>`;
-  } else $('zbody').innerHTML='<span class="err">智谱数据缺失</span>';
+  } else $('zbody').innerHTML='<div class="meta">年费已退，停止监测（2026-10）。</div>';
   // 火山
   if(v&&v.periods){
     $('vedition').textContent=v.edition;
@@ -507,18 +499,13 @@ function render(d){
   // DeepSeek / xf
   renderDeepseek(d.deepseek);
   renderXf(d.xf);
-  // 今日
-  const t=d.today||(z&&z.today);
-  if(t&&t.date){
-    $('tdate').textContent=t.date;
-    $('tbody').innerHTML=`<div class="big">${fmt(t.totalTokens)}</div><div class="sub">tokens · ${fmt(t.totalCalls)} 次调用</div>`+
-      (t.byModel&&t.byModel.length?`<table><tr><th>模型</th><th>今日 tokens</th><th>占 7 天总量</th></tr>`+
-        t.byModel.map(m=>`<tr><td>${esc(m.model)}</td><td>${fmt(m.tokens)}</td><td>${(Number(m.share||0)*100).toFixed(1)}%</td></tr>`).join('')+'</table>':'');
+  // 今日（xf 中转口径：今日 tokens / 调用 / 消费；智谱退订后无智谱口径）
+  const x=d.xf, xrate=(x&&x.cnyPerUsd)||0.1479;
+  if(x&&!x.error){
+    const _n=new Date(),dts=`${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}`;
+    $('tdate').textContent=dts;
+    $('tbody').innerHTML=`<div class="big">${fmt(x.todayTokens)}</div><div class="sub">tokens · ${fmt(x.todayRequests)} 次调用 · 消费 $${(x.todayCost||0).toFixed(2)} ≈ ¥${((x.todayCost||0)*xrate).toFixed(2)}（xf 中转口径）</div>`;
   } else $('tbody').innerHTML='<span class="err">今日数据缺失</span>';
-  // 7 天堆叠柱状图
-  const days=z&&z.days||d.days, byModelDaily=z&&z.byModelDaily||d.byModelDaily;
-  if(days&&byModelDaily) $('chart7').innerHTML=stackedChart(days,byModelDaily);
-  else $('chart7').innerHTML='<span class="err">7 天数据缺失</span>';
   // 节奏与续航预测
   renderPace(d);
   // 消耗速率与决策外推
@@ -534,40 +521,18 @@ function render(d){
   else $('trend').textContent='快照积累中（'+((d.history||[]).length)+' 个点，≥2 个后绘制）';
 }
 
-const MC={'GLM-5.3-Flash':'var(--purple)','GLM-5.3':'var(--blue)','GLM-4.7':'var(--green)'};
-const mc=n=>MC[n]||'var(--orange)';
-
-function stackedChart(days,byModel){
-  const W=720,H=170,P={l:8,r:8,t:14,b:20},iw=W-P.l-P.r,ih=H-P.t-P.b;
-  const models=Object.keys(byModel).sort((a,b)=>byModel[b].total-byModel[a].total);
-  const totals=days.map((_,i)=>models.reduce((s,m)=>s+(byModel[m].daily[i]||0),0));
-  const max=Math.max(1,...totals),bw=iw/days.length;
-  let bars='';
-  days.forEach((day,i)=>{
-    let y=ih+P.t;
-    models.forEach(m=>{
-      const v=byModel[m].daily[i]||0;if(!v)return;
-      const h=v/max*ih;y-=h;
-      bars+=`<rect x="${(P.l+i*bw+bw*.15).toFixed(1)}" y="${y.toFixed(1)}" width="${(bw*.7).toFixed(1)}" height="${h.toFixed(1)}" rx="1.5" fill="${mc(m)}" opacity=".85"/>`;
-    });
-    bars+=`<text x="${P.l+i*bw+bw/2}" y="${H-5}" font-size="9.5" fill="var(--mut)" text-anchor="middle">${day.slice(5)}</text>`;
-    if(totals[i])bars+=`<text x="${P.l+i*bw+bw/2}" y="${(y-4).toFixed(1)}" font-size="9" fill="var(--mut)" text-anchor="middle">${(totals[i]/1e6).toFixed(1)}M</text>`;
-  });
-  return `<svg viewBox="0 0 ${W} ${H}">${bars}</svg><div class="legend">${models.map(m=>`<span><i style="background:${mc(m)}"></i>${esc(m)}</span>`).join('')}</div>`;
-}
-
 function trendChart(h){
   const W=720,H=160,P={l:34,r:10,t:12,b:18},iw=W-P.l-P.r,ih=H-P.t-P.b;
   const X=i=>P.l+i/(h.length-1)*iw, Y=p=>P.t+(1-p/100)*ih;
-  const path=k=>h.map((pt,i)=>(i?'L':'M')+X(i).toFixed(1)+','+Y(pt[k]).toFixed(1)).join('');
+  // null 点跳过（旧快照 vSessionPct 可能缺失，Y(null)=NaN 会报废整条 path）
+  const path=k=>h.map((pt,i)=>pt[k]==null?null:(i?'L':'M')+X(i).toFixed(1)+','+Y(pt[k]).toFixed(1)).filter(Boolean).join('');
   let g='';
   [0,50,100].forEach(p=>{g+=`<line x1="${P.l}" x2="${W-P.r}" y1="${Y(p)}" y2="${Y(p)}" stroke="#22252d" stroke-width="1"/><text x="${P.l-5}" y="${Y(p)+3}" font-size="9" fill="var(--mut)" text-anchor="end">${p}%</text>`});
-  g+=`<path d="${path('zWorstPct')}" fill="none" stroke="var(--blue)" stroke-width="2"/>`;
   g+=`<path d="${path('vSessionPct')}" fill="none" stroke="var(--orange)" stroke-width="2"/>`;
-  h.forEach((pt,i)=>{g+=`<circle cx="${X(i)}" cy="${Y(pt.zWorstPct)}" r="2.5" fill="var(--blue)"/><circle cx="${X(i)}" cy="${Y(pt.vSessionPct)}" r="2.5" fill="var(--orange)"/>`});
+  h.forEach((pt,i)=>{if(pt.vSessionPct!=null)g+=`<circle cx="${X(i)}" cy="${Y(pt.vSessionPct)}" r="2.5" fill="var(--orange)"/>`});
   const step=Math.ceil(h.length/6);
   h.forEach((pt,i)=>{if(i%step===0||i===h.length-1)g+=`<text x="${X(i)}" y="${H-4}" font-size="9" fill="var(--mut)" text-anchor="middle">${new Date(pt.ts).toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'})}</text>`});
-  return `<svg viewBox="0 0 ${W} ${H}">${g}</svg><div class="legend"><span><i style="background:var(--blue)"></i>智谱最紧窗口</span><span><i style="background:var(--orange)"></i>火山 5h 窗口</span></div>`;
+  return `<svg viewBox="0 0 ${W} ${H}">${g}</svg><div class="legend"><span><i style="background:var(--orange)"></i>火山 5h 窗口</span></div>`;
 }
 
 // 导航高亮：滚动时当前板块对应导航项加 .on
