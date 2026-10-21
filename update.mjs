@@ -281,12 +281,40 @@ if (!staged) { console.log('数据无变化，跳过推送'); process.exit(0); }
 const now = new Date();
 const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 git(['commit', '-m', `"snapshot ${stamp}"`]);
-// GitHub 直连不稳定（间歇性连接重置），push 失败重试；最终失败也不报错，commit 已保留待下轮推
+// ---------- push 自愈：失败自动轮换 hosts 里的 GitHub IP ----------
+// 本机到 GitHub 直连属间歇性阻断（TLS 层被重置，同一 IP 时通时断）。
+// 策略：每次 push 失败 → 轮换 hosts 中 github.com 的 IP → flushdns → 重试；
+// 需要计划任务以最高权限运行（写 hosts 需管理员）。最终失败也不报错，commit 已保留待下轮推。
+const GH_IPS = [
+  '140.82.112.3', '140.82.112.4', '140.82.113.3', '140.82.113.4',
+  '140.82.114.3', '140.82.114.4', '140.82.116.3', '140.82.116.4',
+  '20.205.243.166', '20.27.177.113',
+];
+const HOSTS = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'drivers', 'etc', 'hosts');
+function rotateHosts() {
+  try {
+    const raw = readFileSync(HOSTS, 'utf8');
+    const m = raw.match(/^(\d{1,3}(?:\.\d{1,3}){3})(\s+github\.com)/m);
+    if (!m) return 'hosts 无 github.com 条目，跳过轮换';
+    const idx = GH_IPS.indexOf(m[1]);
+    const next = GH_IPS[(idx + 1) % GH_IPS.length];
+    const updated = raw
+      .replace(/^(\d{1,3}(?:\.\d{1,3}){3})(\s+github\.com)/m, next + '$2')
+      .replace(/^(\d{1,3}(?:\.\d{1,3}){3})(\s+www\.github\.com)/m, next + '$2');
+    writeFileSync(HOSTS, updated, 'utf8');
+    spawnSync('ipconfig', ['/flushdns'], { shell: true });
+    return `${m[1]} → ${next}`;
+  } catch (e) { return '轮换失败：' + String(e.message || e).slice(0, 80); }
+}
 let pushed = false;
+const pushT0 = Date.now();
 for (let i = 1; i <= 6 && !pushed; i++) {
   try { git(['push']); pushed = true; }
   catch (e) {
-    console.log(`push 第${i}次失败：${String(e.message).replace(/\n/g, ' ').slice(0, 120)}${i < 6 ? '，5 秒后重试' : '（放弃，commit 已保留，下轮计划任务会再推）'}`);
+    const msg = String(e.message).replace(/\n/g, ' ').slice(0, 120);
+    if (Date.now() - pushT0 > 150000) { console.log(`push 第${i}次失败（${msg}）；重试总时长超 150s 预算，放弃（commit 已保留，下轮再推）`); break; }
+    const rot = rotateHosts();
+    console.log(`push 第${i}次失败：${msg}；已轮换 GitHub IP：${rot}，5 秒后重试`);
     if (i < 6) await new Promise((r) => setTimeout(r, 5000));
   }
 }
