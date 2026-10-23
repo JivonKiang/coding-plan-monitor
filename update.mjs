@@ -106,12 +106,29 @@ const VOLC_CAPS = {
   Pro: { session: 6000, weekly: 45000, monthly: 90000 },
   Lite: { session: 1200, weekly: 9000, monthly: 18000 },
 };
-const VOLC_LABEL = { session: '5小时窗口', weekly: '每周窗口', monthly: '每月窗口' };
+const VOLC_LABEL = { session: '5小时窗口', '5h': '5小时窗口', weekly: '每周窗口', monthly: '每月窗口' };
 const toMs = (v) => {
   if (v == null) return null;
   if (typeof v === 'number') return v > 1e12 ? v : v * 1000;
   const t = Date.parse(v); return isNaN(t) ? null : t;
 };
+
+// arkcli 的 label 两种写法都出现过（session / 5h），统一 key=session
+const normKey = (l) => (l === '5h' ? 'session' : l);
+
+// 额度上限：优先用 arkcli 返回的 total（Agent Plan 自带），兜底查本地容量表（Coding Plan 只回 percent）
+function mapPeriods(item, caps) {
+  return (item.periods || []).map((pe) => {
+    const total = Number(pe.total);
+    const cap = Number.isFinite(total) && total > 0 ? total : (caps[normKey(pe.label)] || 0);
+    const used = pe.used != null ? Number(pe.used) : Math.round((Number(pe.percent) || 0) / 100 * cap);
+    const pct = pe.percent != null ? Number(pe.percent) : (cap > 0 ? (used / cap) * 100 : 0);
+    return {
+      key: normKey(pe.label), label: VOLC_LABEL[pe.label] || pe.label,
+      cap, pct, used: Math.round(used), reset: toMs(pe.reset_at),
+    };
+  });
+}
 
 function fetchVolc() {
   const edition = cfg.volcEdition === 'Lite' ? 'Lite' : 'Pro';
@@ -119,28 +136,25 @@ function fetchVolc() {
   let j = null, lastErr = '';
   for (let i = 0; i < 3 && !j; i++) {
     if (i) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2000);
-    const p = spawnSync('arkcli', ['usage', 'plan', '--format', 'json'], { shell: true, encoding: 'utf8' });
+    // --all：一次拿全 4 个 SKU（personal 的 Coding Plan + Agent Plan，team 席位无绑定时返回 error 可忽略）
+    const p = spawnSync('arkcli', ['usage', 'plan', '--all', '--format', 'json'], { shell: true, encoding: 'utf8' });
     const so = p.stdout || '';
     try { j = JSON.parse(so.slice(so.indexOf('{'))); }
     catch { lastErr = 'stdout=' + so.slice(0, 120) + ' stderr=' + (p.stderr || '').slice(0, 120); }
   }
   if (!j) throw new Error('arkcli 输出无法解析（重试 3 次失败，可能未登录，运行 arkcli auth login）: ' + lastErr);
-  const item = (j.items || [])[0];
-  if (!item) throw new Error('arkcli 未返回用量: ' + JSON.stringify(j).slice(0, 150));
-  const caps = VOLC_CAPS[edition];
+  const items = j.items || [];
+  const pick = (product) => items.find((it) => it.product === product && it.edition !== 'team' && it.periods?.length);
+  const coding = pick('coding-plan'), agent = pick('agent-plan');
+  if (!coding && !agent) throw new Error('arkcli 未返回已订阅套餐用量: ' + JSON.stringify(items).slice(0, 150));
+  const viewer = { user: j.viewer?.user_name || j.viewer?.user_id || '', profile: j.viewer?.profile || '' };
   return {
-    edition,
-    user: j.viewer?.user_name || j.viewer?.user_id || '',
-    profile: j.viewer?.profile || '',
-    periods: (item.periods || []).map((pe) => {
-      const cap = caps[pe.label] || 0;
-      return {
-        key: pe.label, label: VOLC_LABEL[pe.label] || pe.label,
-        cap, pct: Number(pe.percent) || 0,
-        used: Math.round((Number(pe.percent) || 0) / 100 * cap),
-        reset: toMs(pe.reset_at),
-      };
-    }),
+    coding: coding
+      ? { ...viewer, edition, product: 'coding-plan', tier: coding.tier || edition, periods: mapPeriods(coding, VOLC_CAPS[edition]) }
+      : null,
+    agent: agent
+      ? { ...viewer, edition: 'Personal', product: 'agent-plan', tier: agent.tier || '', periods: mapPeriods(agent, {}) }
+      : null,
   };
 }
 
@@ -372,7 +386,9 @@ async function fetchQianfan() {
 
 // ---------- 主流程 ----------
 const zhipu = await safe(fetchZhipu, '智谱');
-const volc = await safe(fetchVolc, '火山');
+const volcRes = await safe(fetchVolc, '火山');
+const volc = volcRes?.error ? { error: volcRes.error } : (volcRes?.coding || null);
+const volcAgent = volcRes?.error ? { error: volcRes.error } : (volcRes?.agent || null);
 const deepseek = await safe(fetchDeepseek, 'DeepSeek');
 const xf = await safe(fetchXf, 'xf');
 const qianfan = await safe(fetchQianfan, '千帆');
@@ -408,13 +424,15 @@ if (di >= 0) { const old = daily[di]; for (const k of Object.keys(snap)) if (sna
 else daily.push(snap);
 daily = daily.slice(-60);
 
-const data = { ts: Date.now(), zhipu, volc, deepseek, xf, qianfan, intel, history, daily };
+const data = { ts: Date.now(), zhipu, volc, volcAgent, deepseek, xf, qianfan, intel, history, daily };
 writeFileSync(dataPath, JSON.stringify(data));
 if (zhipu && !zhipu.error) console.log(`[智谱] OK ${zhipu.level} ` + zhipu.limits.map((l) => `${l.label}=${l.pct.toFixed(0)}%`).join(' '));
 else if (zhipu?.error) console.log('[智谱] 未采集成功');
 else console.log('[智谱] 未配置（config.json 的 zhipuKey 为空，跳过）');
-if (volc && !volc.error) console.log(`[火山] OK ${volc.edition} ` + volc.periods.map((p) => `${p.key}=${p.pct.toFixed(1)}%`).join(' '));
-else console.log('[火山] 未采集成功：' + (volc?.error || '未知'));
+if (volc && !volc.error) console.log(`[火山 Coding] OK ${volc.tier} ` + volc.periods.map((p) => `${p.key}=${p.pct.toFixed(1)}%`).join(' '));
+else console.log('[火山 Coding] 未采集成功：' + (volc?.error || '未订阅或未返回'));
+if (volcAgent && !volcAgent.error) console.log(`[火山 Agent] OK ${volcAgent.tier} ` + volcAgent.periods.map((p) => `${p.key}=${p.used}/${p.cap}(${p.pct.toFixed(1)}%)`).join(' '));
+else console.log('[火山 Agent] 未采集成功：' + (volcAgent?.error || '未订阅或未返回'));
 if (deepseek && !deepseek.error) console.log(`[DeepSeek] OK 余额 ¥${deepseek.total.toFixed(2)}（可用=${deepseek.isAvailable}）`);
 else if (deepseek?.error) console.log('[DeepSeek] 未采集成功');
 else console.log('[DeepSeek] 未配置（config.json 的 deepseekKey 为空，跳过）');
