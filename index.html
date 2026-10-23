@@ -115,6 +115,19 @@ section.t,div.grid{scroll-margin-top:8px}
   .vact{padding:9px 10px}
   .legend{font-size:10.5px;gap:10px}
   footer{font-size:11px}
+  /* 4 列决策表 → 手机端改成堆叠卡片，避免挤成竖排断字 */
+  #sec-advice table,#sec-cost table{display:block;margin-top:6px}
+  #sec-advice table tr,#sec-cost table tr{display:block;padding:9px 0;border-bottom:1px solid #1e2129}
+  #sec-advice table tr:first-child,#sec-cost table tr:first-child{display:none}
+  #sec-advice table td,#sec-cost table td{display:block;text-align:left;border:none;padding:1px 0;line-height:1.6}
+  #sec-advice table td:nth-child(1),#sec-cost table td:nth-child(1){font-weight:600;font-size:12.5px;color:var(--txt)}
+  #sec-advice table td:nth-child(2),#sec-cost table td:nth-child(2){color:var(--mut);font-size:11px}
+  #sec-advice table td:nth-child(3){font-size:11.5px}
+  #sec-advice table td:nth-child(4),#sec-cost table td:nth-child(4){color:var(--mut);font-size:11px}
+  #sec-advice table td:nth-child(3)::before{content:"费用 ";color:var(--mut)}
+  #sec-advice table td:nth-child(4)::before{content:"定位 ";color:var(--mut)}
+  #sec-cost table td:nth-child(3)::before{content:"单价 ";color:var(--mut)}
+  #sec-cost table td:nth-child(4)::before{content:"月成本 ";color:var(--mut)}
 }
 </style>
 </head>
@@ -554,7 +567,7 @@ function renderCost(d){
     <table><tr><th>渠道</th><th>计费方式</th><th>折算单价</th><th>月成本</th></tr>
     <tr><td>火山 Coding Plan Pro</td><td>订阅固定（主力）</td><td>≈ ¥0.0022/次（用满摊薄）</td><td>¥49.9 首两月 → ¥200</td></tr>
     <tr><td>火山 Agent Plan</td><td>订阅（AFP 燃料值）</td><td>按 token 折算，非按次</td><td>medium · 月 100,000 燃料值</td></tr>
-    <tr><td>xf 中转</td><td>按量（一级兜底）</td><td>${xfCny!=null?'≈ ¥'+xfCny.toFixed(2)+'/M tk（历史均价）':'—'}</td><td>按用量 · 余额 $${x&&!x.error?x.balance:'—'}</td></tr>
+    <tr><td>xf 中转</td><td>按量（一级兜底）</td><td>${xfCny!=null?'≈ ¥'+xfCny.toFixed(2)+'/M tk（历史均价）':'—'}</td><td>按用量 · 余额 $${x&&!x.error?Number(x.balance).toFixed(2):'—'}</td></tr>
     <tr><td>DeepSeek 官方</td><td>按量（二级兜底）</td><td>flash ¥1/2 · pro ¥3/6 每M</td><td>按用量 · 余额 ¥${d.deepseek&&!d.deepseek.error?d.deepseek.total:'—'}</td></tr>
     <tr><td>智谱 GLM</td><td>包年（已退订）</td><td>停止监测</td><td>¥0</td></tr></table>
     <ul class="tips">

@@ -1,6 +1,6 @@
 // Coding Plan 额度采集 → data.json → git push（GitHub Pages 数据源）
 // 用法：node update.mjs [--no-push]  默认采集并推送；--no-push 仅本地更新
-import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, unlinkSync, renameSync } from 'fs';
 import { spawn, spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -425,7 +425,9 @@ else daily.push(snap);
 daily = daily.slice(-60);
 
 const data = { ts: Date.now(), zhipu, volc, volcAgent, deepseek, xf, qianfan, intel, history, daily };
-writeFileSync(dataPath, JSON.stringify(data));
+// 原子写：页面每 2 分钟拉一次，直接覆写会撞上"文件只写了一半"导致 JSON 解析失败（表现为部分卡片停在"加载中"）
+writeFileSync(dataPath + '.tmp', JSON.stringify(data));
+renameSync(dataPath + '.tmp', dataPath);
 if (zhipu && !zhipu.error) console.log(`[智谱] OK ${zhipu.level} ` + zhipu.limits.map((l) => `${l.label}=${l.pct.toFixed(0)}%`).join(' '));
 else if (zhipu?.error) console.log('[智谱] 未采集成功');
 else console.log('[智谱] 未配置（config.json 的 zhipuKey 为空，跳过）');
