@@ -1,7 +1,7 @@
 // Coding Plan 额度采集 → data.json → git push（GitHub Pages 数据源）
 // 用法：node update.mjs [--no-push]  默认采集并推送；--no-push 仅本地更新
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'fs';
-import { spawnSync } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -22,7 +22,9 @@ process.on('exit', () => { try { unlinkSync(LOCK); } catch {} });
 const pad = (n) => String(n).padStart(2, '0');
 
 // ---------- 配置 ----------
-const cfg = JSON.parse(readFileSync(join(ROOT, 'config.json'), 'utf8'));
+// config.json 缺失时降级为空对象：各采集器已有未配置判断，缺失只影响对应平台
+const CFG_PATH = join(ROOT, 'config.json');
+const cfg = existsSync(CFG_PATH) ? JSON.parse(readFileSync(CFG_PATH, 'utf8')) : {};
 
 // 可选平台采集失败不中断整体快照（返回 {error} 由页面展示；返回 null 表示未配置）
 async function safe(fn, name) {
@@ -242,11 +244,137 @@ async function fetchXf() {
   };
 }
 
+// ---------- 千帆 Token Plan（专用 Edge 登录态 + 页面内 fetch 控制台接口）----------
+// 登录态存在独立 profile（qf-edge-profile）里，与用户日常浏览器隔离；
+// Cookie 已在登录时改写为长有效期（400 天），浏览器重启后仍可复用。
+const QF_PORT = 9227;
+const QF_PROFILE = join(process.env.TEMP || 'C:\\Users\\admin\\AppData\\Local\\Temp', 'qf-edge-profile');
+const QF_CONSOLE = 'https://console.bce.baidu.com/qianfan/resource/token-plan';
+const QF_LOGIN = 'https://login.bce.baidu.com/?redirect=' + encodeURIComponent(QF_CONSOLE);
+const QF_API = '/api/qianfan/charge/tokenPlanPersonal/resource';
+const QF_ERROR = '控制台登录态失效（需在专用浏览器完成一次快捷登录）';
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const qfEdgePath = () => [
+  'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+  'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+].find((p) => existsSync(p));
+
+async function qfCdpVersion() {
+  try {
+    const r = await fetch(`http://127.0.0.1:${QF_PORT}/json/version`, { signal: AbortSignal.timeout(3000) });
+    return await r.json();
+  } catch { return null; }
+}
+
+async function qfEnsurePage() {
+  let up = await qfCdpVersion();
+  if (!up) {
+    const exe = qfEdgePath();
+    if (!exe) throw new Error('未找到 Edge');
+    spawn(exe, [
+      '--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
+      '--user-data-dir=' + QF_PROFILE, '--remote-debugging-port=' + QF_PORT,
+      '--window-size=1280,900', QF_CONSOLE,
+    ], { detached: true, stdio: 'ignore' }).unref();
+    for (let i = 0; i < 40 && !up; i++) { await sleep(1000); up = await qfCdpVersion(); }
+  }
+  if (!up) throw new Error('专用浏览器未启动');
+  const tabs = await (await fetch(`http://127.0.0.1:${QF_PORT}/json/list`, { signal: AbortSignal.timeout(5000) })).json();
+  return tabs.find((t) => t.type === 'page' && /console\.bce\.baidu\.com/.test(t.url)) || tabs.find((t) => t.type === 'page');
+}
+
+async function qfCdp(wsUrl) {
+  const ws = new WebSocket(wsUrl);
+  await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; setTimeout(() => rej(new Error('CDP 连接超时')), 6000); });
+  let id = 0; const pending = new Map();
+  ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); } };
+  const call = (method, params = {}, ms = 20000) => new Promise((res) => {
+    const myId = ++id; pending.set(myId, res);
+    ws.send(JSON.stringify({ id: myId, method, params }));
+    setTimeout(() => { if (pending.has(myId)) { pending.delete(myId); res({ timeout: true }); } }, ms);
+  });
+  const evaluate = async (expr) => {
+    const r = await call('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true });
+    if (r.timeout) throw new Error('页面响应超时');
+    if (r.result?.exceptionDetails) throw new Error('页面脚本异常');
+    return r.result?.result?.value;
+  };
+  return { call, evaluate, close: () => { try { ws.close(); } catch {} } };
+}
+
+// 读取余额：返回白名单字段，绝不带出 apiKey / resourceId / Cookie
+async function qfReadBalance() {
+  const tab = await qfEnsurePage();
+  if (!tab?.webSocketDebuggerUrl) throw new Error('专用浏览器无可用标签页');
+  const cdp = await qfCdp(tab.webSocketDebuggerUrl);
+  try {
+    return await cdp.evaluate(`(async () => {
+      try {
+        const res = await fetch('${QF_API}', { credentials: 'include', headers: { Accept: 'application/json' } });
+        const txt = await res.text();
+        if (!txt || txt.trim().startsWith('<')) return { login: true, status: res.status };
+        const j = JSON.parse(txt);
+        const it = (j.result && j.result.items && j.result.items[0]) || null;
+        if (!it) return { empty: true, status: res.status };
+        return {
+          status: res.status, planType: it.planType, resourceStatus: it.resourceStatus,
+          effectiveAt: it.effectiveAt, expiresAt: it.expiresAt, autoRenew: !!it.autoRenew,
+          totalCredits: Number(it.totalCredits) || 0, usedCredits: Number(it.usedCredits) || 0,
+        };
+      } catch { return { netError: true }; }
+    })()`);
+  } finally { cdp.close(); }
+}
+
+// 登录态失效时自动走「快捷登录」（profile 内已缓存账号，无需短信/扫码）
+async function qfQuickLogin() {
+  const tab = await qfEnsurePage();
+  const cdp = await qfCdp(tab.webSocketDebuggerUrl);
+  try {
+    await cdp.call('Page.enable');
+    await cdp.call('Page.navigate', { url: QF_LOGIN });
+    await sleep(6000);
+    const ok = await cdp.evaluate(`(() => {
+      const cb = document.querySelector('input[type=checkbox]');
+      if (cb && !cb.checked) cb.click();
+      const c = [...document.querySelectorAll('button,div,a,span')]
+        .filter(e => e.offsetParent && (e.textContent || '').trim() === '快捷登录');
+      if (!c.length) return false;
+      c.sort((a, b) => b.getBoundingClientRect().width - a.getBoundingClientRect().width)[0].click();
+      return true;
+    })()`);
+    await sleep(6000);
+    return ok;
+  } finally { cdp.close(); }
+}
+
+async function fetchQianfan() {
+  const shape = (r) => {
+    const remain = +(r.totalCredits - r.usedCredits).toFixed(2);
+    return {
+      plan: r.planType || '', status: r.resourceStatus || '',
+      total: r.totalCredits, used: r.usedCredits, remain,
+      pct: r.totalCredits > 0 ? +(remain / r.totalCredits * 100).toFixed(2) : null,
+      effectiveAt: r.effectiveAt || null, expiresAt: r.expiresAt || null,
+      autoRenew: r.autoRenew === true,
+    };
+  };
+  const r1 = await qfReadBalance();
+  if (r1?.totalCredits != null) return shape(r1);
+  if (r1?.login || r1?.netError) {
+    await qfQuickLogin();
+    const r2 = await qfReadBalance();
+    if (r2?.totalCredits != null) return shape(r2);
+  }
+  throw new Error(QF_ERROR);
+}
+
 // ---------- 主流程 ----------
 const zhipu = await safe(fetchZhipu, '智谱');
 const volc = await safe(fetchVolc, '火山');
 const deepseek = await safe(fetchDeepseek, 'DeepSeek');
 const xf = await safe(fetchXf, 'xf');
+const qianfan = await safe(fetchQianfan, '千帆');
 
 const zWorstPct = zhipu?.limits?.length ? Math.max(...zhipu.limits.map((l) => l.pct)) : null;
 const vSessionPct = volc?.periods?.find((p) => p.key === 'session')?.pct ?? null;
@@ -278,7 +406,7 @@ if (di >= 0) { const old = daily[di]; for (const k of Object.keys(snap)) if (sna
 else daily.push(snap);
 daily = daily.slice(-60);
 
-const data = { ts: Date.now(), zhipu, volc, deepseek, xf, history, daily };
+const data = { ts: Date.now(), zhipu, volc, deepseek, xf, qianfan, history, daily };
 writeFileSync(dataPath, JSON.stringify(data));
 if (zhipu && !zhipu.error) console.log(`[智谱] OK ${zhipu.level} ` + zhipu.limits.map((l) => `${l.label}=${l.pct.toFixed(0)}%`).join(' '));
 else if (zhipu?.error) console.log('[智谱] 未采集成功');
@@ -291,6 +419,9 @@ else console.log('[DeepSeek] 未配置（config.json 的 deepseekKey 为空，�
 if (xf && !xf.error) console.log(`[xf] OK 余额 $${xf.balance.toFixed(2)} · 今日 $${xf.todayCost.toFixed(2)} / ${xf.todayTokens} tokens`);
 else if (xf?.error) console.log('[xf] 未采集成功');
 else console.log('[xf] 未配置（config.json 的 xf 段为空，跳过）');
+if (qianfan && !qianfan.error) console.log(`[千帆] OK ${qianfan.plan} 余量 ${qianfan.pct}%（${qianfan.remain.toLocaleString()}/${qianfan.total.toLocaleString()}）到期 ${String(qianfan.expiresAt || '').slice(0, 10)}`);
+else if (qianfan?.error) console.log('[千帆] 未采集成功：' + qianfan.error);
+else console.log('[千帆] 未配置（跳过）');
 
 // ---------- 推送 ----------
 if (NO_PUSH) { console.log('（--no-push：仅本地更新 data.json）'); process.exit(0); }
