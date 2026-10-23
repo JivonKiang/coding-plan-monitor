@@ -3,3 +3,11 @@ xf_tokens.json
 node_modules/
 update.lock
 task-update.log
+intel-state.json
+intel-cache.json
+intel-sent.json
+_intel_mail.md
+_probe_*
+_volc.html
+_ds.html
+_cfgcheck.mjs

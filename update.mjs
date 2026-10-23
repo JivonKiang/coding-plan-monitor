@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'fs';
 import { spawn, spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { collectIntel } from './intel.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const NO_PUSH = process.argv.includes('--no-push');
@@ -375,6 +376,7 @@ const volc = await safe(fetchVolc, '火山');
 const deepseek = await safe(fetchDeepseek, 'DeepSeek');
 const xf = await safe(fetchXf, 'xf');
 const qianfan = await safe(fetchQianfan, '千帆');
+const intel = await safe(() => collectIntel({ root: ROOT }), '情报');
 
 const zWorstPct = zhipu?.limits?.length ? Math.max(...zhipu.limits.map((l) => l.pct)) : null;
 const vSessionPct = volc?.periods?.find((p) => p.key === 'session')?.pct ?? null;
@@ -406,7 +408,7 @@ if (di >= 0) { const old = daily[di]; for (const k of Object.keys(snap)) if (sna
 else daily.push(snap);
 daily = daily.slice(-60);
 
-const data = { ts: Date.now(), zhipu, volc, deepseek, xf, qianfan, history, daily };
+const data = { ts: Date.now(), zhipu, volc, deepseek, xf, qianfan, intel, history, daily };
 writeFileSync(dataPath, JSON.stringify(data));
 if (zhipu && !zhipu.error) console.log(`[智谱] OK ${zhipu.level} ` + zhipu.limits.map((l) => `${l.label}=${l.pct.toFixed(0)}%`).join(' '));
 else if (zhipu?.error) console.log('[智谱] 未采集成功');
@@ -422,6 +424,8 @@ else console.log('[xf] 未配置（config.json 的 xf 段为空，跳过）');
 if (qianfan && !qianfan.error) console.log(`[千帆] OK ${qianfan.plan} 余量 ${qianfan.pct}%（${qianfan.remain.toLocaleString()}/${qianfan.total.toLocaleString()}）到期 ${String(qianfan.expiresAt || '').slice(0, 10)}`);
 else if (qianfan?.error) console.log('[千帆] 未采集成功：' + qianfan.error);
 else console.log('[千帆] 未配置（跳过）');
+if (intel && !intel.error) console.log(`[情报] OK 千帆 ${intel.qianfan.count} 模型 · 火山 ${intel.volc.discounts.filter((d) => d.status === 'active').length} 个活动折扣 · 告警 ${intel.alerts.length} 条${!intel.cached && intel.mail?.sent ? ` · 邮件已发 ${intel.mail.sent} 条` : ''}${intel.cached ? '（缓存）' : ''}`);
+else console.log('[情报] 未采集成功：' + (intel?.error || '未知'));
 
 // ---------- 推送 ----------
 if (NO_PUSH) { console.log('（--no-push：仅本地更新 data.json）'); process.exit(0); }

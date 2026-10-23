@@ -108,6 +108,7 @@ section.t,div.grid{scroll-margin-top:8px}
   <a href="#sec-advice" data-sec="sec-advice">建议</a>
   <a href="#sec-trend" data-sec="sec-trend">趋势</a>
   <a href="#sec-cost" data-sec="sec-cost">成本</a>
+  <a href="#sec-intel" data-sec="sec-intel">情报</a>
   <a href="#sec-setup" data-sec="sec-setup">配置</a>
 </nav>
 <div class="layout">
@@ -122,6 +123,7 @@ section.t,div.grid{scroll-margin-top:8px}
     <a href="#sec-advice" data-sec="sec-advice"><i class="sdot"></i>建议与性价比</a>
     <a href="#sec-trend" data-sec="sec-trend"><i class="sdot"></i>历史趋势</a>
     <a href="#sec-cost" data-sec="sec-cost"><i class="sdot"></i>成本分析</a>
+    <a href="#sec-intel" data-sec="sec-intel"><i class="sdot"></i>模型情报</a>
     <a href="#sec-setup" data-sec="sec-setup"><i class="sdot"></i>接入配置</a>
   </nav>
   <div class="side-foot">本机每 2 分钟采集推送<br>公网 Pages · 手机/电脑同步</div>
@@ -180,6 +182,11 @@ section.t,div.grid{scroll-margin-top:8px}
 <section class="t card" id="sec-cost">
   <h2>成本分析与优化 <span class="badge purple" id="costrate">—</span></h2>
   <div id="costbody">加载中…</div>
+</section>
+
+<section class="t card" id="sec-intel">
+  <h2>模型情报监测 <span class="badge blue" id="intelbadge">—</span></h2>
+  <div id="intelbody">加载中…</div>
 </section>
 
 <section class="t card" id="sec-setup">
@@ -256,6 +263,49 @@ function renderQianfan(q){
   <div class="meta">生效 ${dt(q.effectiveAt)} · 到期 ${dt(q.expiresAt)}${days!=null?` · 剩 ${days} 天`:''}</div></div>
   <div class="row"><div class="top"><b>速率限制</b><span class="pct" style="color:var(--amber)">个人版 · 不可并行</span></div>
   <div class="meta">与智谱同：个人版有速率上限，多路并行会排队等待，无法当企业级并发池用。Agent 批量并行任务建议串行化，或把重活溢出到 xf 中转站 / DeepSeek 官方（按量、无限速）。</div></div>`;
+}
+
+function renderIntel(it){
+  const el=$('intelbody'),bd=$('intelbadge');
+  if(!it){bd.textContent='—';el.innerHTML=pend('待首轮采集：本机每 3 小时抓一次多源情报（千帆模型清单 · 火山个人版折扣 · DeepSeek 官方价格），结果随 data.json 一起推送。');return}
+  if(it.error){bd.textContent='采集失败';el.innerHTML=`<span class="err">情报采集失败：${esc(it.error)}</span>`;return}
+  const all=it.volc?.discounts||[], act=all.filter(x=>x.status!=='expired');
+  const alerts=it.alerts||[];
+  bd.textContent=`${it.qianfan?.count||0} 模型 · ${act.length} 个折扣 · ${alerts.length} 条告警`;
+  const dis=v=>v==null?'—':`${+(v*10).toFixed(1)} 折`;
+  const dt=s=>s?new Date(s).toLocaleDateString('zh-CN',{month:'2-digit',day:'2-digit'}):'—';
+  const dc=x=>x.daysLeft<=3?'var(--red)':x.daysLeft<=14?'var(--amber)':'var(--green)';
+  const lvBadge=l=>l==='high'?'<span class="badge red">高优先</span>':l==='warn'?'<span class="badge amber">注意</span>':'<span class="badge">信息</span>';
+  const srcHtml=(it.sources||[]).map(s=>`<span class="badge ${s.unsupported?'':s.ok?'blue':'red'}">${esc(s.name)}${s.unsupported?' 未覆盖':(s.ok?'':' 失败')}</span>`).join(' ');
+  const priceCell=m=>[m.off,m.peak].map(v=>v==null?'—':'$'+v).join(' / ');
+
+  const alertHtml=alerts.length
+    ? `<div class="row"><div class="top"><b>本轮告警</b><span class="meta">已邮件通知</span></div>`+
+      alerts.map(a=>`<div style="margin-top:8px"><div class="top"><b style="font-size:12.5px">${esc(a.type)}</b>${lvBadge(a.level)}</div><div class="meta">${esc(a.text)}</div></div>`).join('')+`</div>`
+    : `<div class="row"><div class="top"><b>本轮告警</b><span class="pct" style="color:var(--green)">无</span></div><div class="meta">只在「新增高性价比模型 / 折扣加深 / 折扣剩余 ≤3 天 / 官方降价或涨价」时告警，同一事件只通知一次。</div></div>`;
+
+  const volcHtml=act.length
+    ? `<table><tr><th>火山活动模型</th><th>折扣</th><th>到期</th><th>剩余</th></tr>`+
+      act.map(x=>`<tr><td>${esc(x.model)}</td><td>${dis(x.discount)}</td><td>${dt(x.end)}</td><td style="color:${dc(x)}">${x.daysLeft>0?'剩 '+x.daysLeft+' 天':'今日到期'}</td></tr>`).join('')+
+      `</table><div class="meta">另有 ${all.length-act.length} 个活动已结束${act.length?` · 折扣越深 = 同样积分能跑更多`:'。'}</div>`
+    : `<div class="meta">火山折扣页暂未解析到进行中的活动。</div>`;
+
+  const ds=it.deepseek||{}, dsRows=(ds.models||[]).map(m=>`<tr><td>${esc(m.id)}</td><td>${esc(m.version||'—')}</td><td>${priceCell({off:m.cacheHitOff,peak:m.cacheHitPeak})}</td><td>${priceCell({off:m.cacheMissOff,peak:m.cacheMissPeak})}</td><td>${priceCell({off:m.outputOff,peak:m.outputPeak})}</td></tr>`).join('');
+  const dsHtml=dsRows
+    ? `<table><tr><th>DeepSeek 模型</th><th>版本</th><th>缓存命中</th><th>缓存未命中</th><th>输出</th></tr>${dsRows}</table>
+       <div class="meta">$ / 百万 tokens（平峰 / 峰时）· 并发上限 flash ${fmt(ds.concurrency?.flash)} / pro ${fmt(ds.concurrency?.pro)} 对应本机 API Key 档位</div>`
+    : `<div class="meta">DeepSeek 价格页暂未解析到模型。</div>`;
+
+  const qfIds=(it.qianfan?.models||[]).map(m=>m.id);
+  const qfHtml=`<div class="row"><div class="top"><b>千帆 Token Plan 模型清单</b><span class="pct">${it.qianfan?.count||0} 个</span></div>
+    <div class="meta">新增模型会以告警形式提示；清单明细：</div>
+    <details style="margin-top:4px"><summary style="font-size:12px;color:#93c5fd;cursor:pointer">展开 ${qfIds.length} 个模型 id</summary>
+    <div class="meta" style="line-height:1.9">${qfIds.map(esc).join(' · ')||'—'}</div></details></div>`;
+
+  el.innerHTML=`<div class="meta" style="margin-bottom:10px">${srcHtml} · 刷新 ${ago(it.ts)}${it.cached?'（缓存，3 小时一抓）':''}</div>`
+    + alertHtml + volcHtml + dsHtml + qfHtml
+    + (it.mail&&it.mail.ok===false?`<div class="meta" style="color:var(--red)">⚠ 上轮邮件未发出：${esc(it.mail.error||it.mail.skipped||'未知')}（下轮自动重试）</div>`:'')
+    + `<div class="note"><b>告警通道：</b>邮件发 <code>fmmujf@163.com</code>（变更去重、每天最多 5 封）+ 本页展示。<b>只提醒不改配置：</b>换模型、换 Base URL 一律由你手动操作。智谱 bigmodel 价格页是 SPA，纯抓取拿不到价目表，标「未覆盖」，不编造。</div>`;
 }
 
 function renderPace(d){
@@ -519,6 +569,7 @@ function render(d){
   renderDeepseek(d.deepseek);
   renderXf(d.xf);
   renderQianfan(d.qianfan);
+  renderIntel(d.intel);
   // 今日（双口径：火山主力=5小时窗口用量估算；xf=中转实测；智谱已退订）
   const x=d.xf, xrate=(x&&x.cnyPerUsd)||0.1479; // v 已在函数开头声明（d.volc）
   const _n=new Date(),dts=`${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}`;
