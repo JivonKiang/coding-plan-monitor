@@ -139,6 +139,7 @@ section.t,div.grid{scroll-margin-top:8px}
   <div class="card" id="vcard"><h2>火山方舟 <span class="badge orange" id="vedition">—</span></h2><div id="vbody">加载中…</div></div>
   <div class="card" id="dscard"><h2>DeepSeek 官方 <span class="badge red">按量</span></h2><div id="dsbody">加载中…</div></div>
   <div class="card" id="xfcard"><h2>xf 中转站 <span class="badge purple">按量</span></h2><div id="xfbody">加载中…</div></div>
+  <div class="card" id="qfcard"><h2>千帆 Token Plan <span class="badge blue" id="qfplan">—</span></h2><div id="qfbody">加载中…</div></div>
 </div>
 
 <section class="t card" id="sec-today">
@@ -185,14 +186,14 @@ section.t,div.grid{scroll-margin-top:8px}
   <h2>GitHub 接入配置</h2>
   <div class="krow"><b>站点</b><span><a href="https://jivonkiang.github.io/coding-plan-monitor/" target="_blank">jivonkiang.github.io/coding-plan-monitor</a></span></div>
   <div class="krow"><b>仓库</b><span><a href="https://github.com/JivonKiang/coding-plan-monitor" target="_blank">JivonKiang/coding-plan-monitor</a></span></div>
-  <div class="krow"><b>自动更新</b><span>本机计划任务每 2 分钟运行 <code>node update.mjs</code> → 采集 3 平台 → push → Pages 自动重建</span></div>
+  <div class="krow"><b>自动更新</b><span>本机计划任务每 2 分钟运行 <code>node update.mjs</code> → 采集 5 平台 → push → Pages 自动重建</span></div>
   <div class="krow"><b>页面刷新</b><span>每 2 分钟自动拉取；点右上「⟳ 刷新」立即更新；数据层同样是 2 分钟节拍，两者对齐</span></div>
-  <div class="krow"><b>凭证安全</b><span>config.json / xf_tokens.json 仅存本机且被 .gitignore 排除；公开的只有余额/用量数字</span></div>
+  <div class="krow"><b>凭证安全</b><span>config.json / xf_tokens.json 仅存本机且被 .gitignore 排除；千帆登录态仅存本机专用浏览器 profile（<code>qf-edge-profile</code>）；公开的只有余额/用量/积分数字</span></div>
   <div class="note">本机另有 serve.mjs（tailnet 内 /plan 路径）提供同一面板的私有镜像，公网页面为主入口。新增平台只需在本机 config.json 填入凭证，下个采集周期自动生效。</div>
 </section>
 
 <footer>
-  数据来源：火山方舟 arkcli · DeepSeek Balance API · sub2api 面板 API（bw.gsykj.com），由本机 <code>update.mjs</code> 每 2 分钟采集并推送。智谱已退订下线（2026-10）。
+  数据来源：火山方舟 arkcli · DeepSeek Balance API · sub2api 面板 API（bw.gsykj.com）· 千帆 Token Plan 控制台（专用浏览器登录态），由本机 <code>update.mjs</code> 每 2 分钟采集并推送。智谱已退订下线（2026-10）。
 </footer>
 </main>
 </div>
@@ -237,6 +238,24 @@ function renderXf(x){
   <div class="krow"><span>累计消费</span><b style="font-variant-numeric:tabular-nums">${money(x.totalCost,'$')}${small(u2c(x.totalCost))}</b></div>`+
     (x.keysCount!=null?`<div class="meta">API Keys：${x.keysCount} 个</div>`:'')+
     `<div class="meta"><a href="${esc(x.baseUrl||'https://bw.gsykj.com')}" target="_blank">${esc(x.baseUrl||'bw.gsykj.com')}</a>（sub2api）· 充值比例 ¥300 = $2028（$1 ≈ ¥${rate}）折算</div>`;
+}
+
+function renderQianfan(q){
+  const el=$('qfbody'),bd=$('qfplan');
+  if(!q){el.innerHTML=pend(`待接入：千帆 Token Plan 余量走本机专用浏览器登录态采集（profile <code>qf-edge-profile</code>），公开数据只含积分总量/已用/剩余，不含 resourceId 与 API Key。`);return}
+  if(q.error){el.innerHTML=`<span class="err">采集失败：${esc(q.error)}</span>`;return}
+  const p=q.pct;
+  const remColor=v=>v==null?'var(--mut)':v<10?'var(--red)':v<20?'var(--amber)':'var(--green)';
+  const dt=s=>s?new Date(s).toLocaleDateString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit'}):'—';
+  const days=q.expiresAt?Math.max(0,Math.ceil((new Date(q.expiresAt).getTime()-Date.now())/86400e3)):null;
+  bd.textContent=(q.plan||'—').toUpperCase()+(q.autoRenew?' 自动续费':'');
+  el.innerHTML=`<div class="big">${fmt(q.remain)}<small style="font-size:12px;color:var(--mut);font-weight:500"> 积分剩余</small></div>
+  <div class="sub">已用 ${fmt(q.used)} / 总量 ${fmt(q.total)} 积分 · ${esc(q.status||'—')}</div>
+  <div class="row"><div class="top"><b>套餐余量</b><span class="pct" style="color:${remColor(p)}">${p!=null?p.toFixed(2)+'%':'—'}</span></div>
+  <div class="bar"><i style="width:${p==null?0:Math.min(100,p)}%;background:${remColor(p)}"></i></div>
+  <div class="meta">生效 ${dt(q.effectiveAt)} · 到期 ${dt(q.expiresAt)}${days!=null?` · 剩 ${days} 天`:''}</div></div>
+  <div class="row"><div class="top"><b>速率限制</b><span class="pct" style="color:var(--amber)">个人版 · 不可并行</span></div>
+  <div class="meta">与智谱同：个人版有速率上限，多路并行会排队等待，无法当企业级并发池用。Agent 批量并行任务建议串行化，或把重活溢出到 xf 中转站 / DeepSeek 官方（按量、无限速）。</div></div>`;
 }
 
 function renderPace(d){
@@ -499,6 +518,7 @@ function render(d){
   // DeepSeek / xf
   renderDeepseek(d.deepseek);
   renderXf(d.xf);
+  renderQianfan(d.qianfan);
   // 今日（双口径：火山主力=5小时窗口用量估算；xf=中转实测；智谱已退订）
   const x=d.xf, xrate=(x&&x.cnyPerUsd)||0.1479; // v 已在函数开头声明（d.volc）
   const _n=new Date(),dts=`${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}`;
