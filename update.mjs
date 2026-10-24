@@ -130,25 +130,30 @@ function mapPeriods(item, caps) {
   });
 }
 
-function fetchVolc() {
+function fetchVolcOne(profile) {
   const edition = cfg.volcEdition === 'Lite' ? 'Lite' : 'Pro';
+  const args = ['usage', 'plan', '--all', '--format', 'json'];
+  if (profile) args.push('--profile', profile);
   // 只 parse stdout（stderr 混入警告会污染拼接文本导致解析失败），失败重试 2 次应对链路抖动
   let j = null, lastErr = '';
   for (let i = 0; i < 3 && !j; i++) {
     if (i) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2000);
     // --all：一次拿全 4 个 SKU（personal 的 Coding Plan + Agent Plan，team 席位无绑定时返回 error 可忽略）
-    const p = spawnSync('arkcli', ['usage', 'plan', '--all', '--format', 'json'], { shell: true, encoding: 'utf8' });
+    const p = spawnSync('arkcli', args, { shell: true, encoding: 'utf8' });
     const so = p.stdout || '';
     try { j = JSON.parse(so.slice(so.indexOf('{'))); }
-    catch { lastErr = 'stdout=' + so.slice(0, 120) + ' stderr=' + (p.stderr || '').slice(0, 120); }
+    catch { lastErr = 'stdout=' + so.slice(0, 200) + ' stderr=' + (p.stderr || '').slice(0, 200); }
   }
-  if (!j) throw new Error('arkcli 输出无法解析（重试 3 次失败，可能未登录，运行 arkcli auth login）: ' + lastErr);
+  if (!j) throw new Error('arkcli 输出无法解析（重试 3 次失败，可能未登录' + (profile ? ' / profile ' + profile : '') + '，运行 arkcli auth login）: ' + lastErr);
   const items = j.items || [];
   const pick = (product) => items.find((it) => it.product === product && it.edition !== 'team' && it.periods?.length);
   const coding = pick('coding-plan'), agent = pick('agent-plan');
-  if (!coding && !agent) throw new Error('arkcli 未返回已订阅套餐用量: ' + JSON.stringify(items).slice(0, 150));
+  // 未返回用量时多留一段原文：面板只做展示，排查前请手跑 arkcli usage plan --all --format json 看全文
+  if (!coding && !agent) throw new Error('arkcli 未返回已订阅套餐用量（面板仅显示前 400 字，排查请手跑 arkcli usage plan --all --format json 看全文）: '
+    + JSON.stringify(items).slice(0, 400));
   const viewer = { user: j.viewer?.user_name || j.viewer?.user_id || '', profile: j.viewer?.profile || '' };
   return {
+    user: viewer.user,
     coding: coding
       ? { ...viewer, edition, product: 'coding-plan', tier: coding.tier || edition, periods: mapPeriods(coding, VOLC_CAPS[edition]) }
       : null,
@@ -156,6 +161,24 @@ function fetchVolc() {
       ? { ...viewer, edition: 'Personal', product: 'agent-plan', tier: agent.tier || '', periods: mapPeriods(agent, {}) }
       : null,
   };
+}
+
+// 多账号：config.volcProfiles = [{label, profile}]，每个账号独立登录态（arkcli --profile）
+function fetchVolc() {
+  const list = Array.isArray(cfg.volcProfiles) && cfg.volcProfiles.length
+    ? cfg.volcProfiles
+    : [{ label: '', profile: '' }];
+  const accounts = list.map(({ label = '', profile = '' }) => {
+    try {
+      const r = fetchVolcOne(profile);
+      return { label, profile, user: r.user, coding: r.coding, agent: r.agent };
+    } catch (e) {
+      return { label, profile, user: '', coding: null, agent: null, error: String(e?.message || e) };
+    }
+  });
+  const first = accounts.find((a) => a.coding || a.agent);
+  if (!first) throw new Error(accounts[0]?.error || 'arkcli 未返回已订阅套餐用量');
+  return { accounts, coding: first.coding, agent: first.agent };
 }
 
 // ---------- DeepSeek（官方按量）----------
@@ -424,17 +447,27 @@ if (di >= 0) { const old = daily[di]; for (const k of Object.keys(snap)) if (sna
 else daily.push(snap);
 daily = daily.slice(-60);
 
-const data = { ts: Date.now(), zhipu, volc, volcAgent, deepseek, xf, qianfan, intel, history, daily };
+const data = { ts: Date.now(), zhipu, volc, volcAgent, volcAccounts: volcRes?.accounts || null, deepseek, xf, qianfan, intel, history, daily };
 // 原子写：页面每 2 分钟拉一次，直接覆写会撞上"文件只写了一半"导致 JSON 解析失败（表现为部分卡片停在"加载中"）
 writeFileSync(dataPath + '.tmp', JSON.stringify(data));
 renameSync(dataPath + '.tmp', dataPath);
 if (zhipu && !zhipu.error) console.log(`[智谱] OK ${zhipu.level} ` + zhipu.limits.map((l) => `${l.label}=${l.pct.toFixed(0)}%`).join(' '));
 else if (zhipu?.error) console.log('[智谱] 未采集成功');
 else console.log('[智谱] 未配置（config.json 的 zhipuKey 为空，跳过）');
-if (volc && !volc.error) console.log(`[火山 Coding] OK ${volc.tier} ` + volc.periods.map((p) => `${p.key}=${p.pct.toFixed(1)}%`).join(' '));
-else console.log('[火山 Coding] 未采集成功：' + (volc?.error || '未订阅或未返回'));
-if (volcAgent && !volcAgent.error) console.log(`[火山 Agent] OK ${volcAgent.tier} ` + volcAgent.periods.map((p) => `${p.key}=${p.used}/${p.cap}(${p.pct.toFixed(1)}%)`).join(' '));
-else console.log('[火山 Agent] 未采集成功：' + (volcAgent?.error || '未订阅或未返回'));
+for (const a of (volcRes?.accounts || [])) {
+  const tag = a.label || a.profile || '默认';
+  if (a.error) { console.log(`[火山 ${tag}] 未采集成功：${a.error}`); continue; }
+  if (a.coding) console.log(`[火山 ${tag} Coding] OK ${a.coding.tier} ` + a.coding.periods.map((p) => `${p.key}=${p.pct.toFixed(1)}%`).join(' '));
+  else console.log(`[火山 ${tag} Coding] 未订阅或未返回`);
+  if (a.agent) console.log(`[火山 ${tag} Agent] OK ${a.agent.tier} ` + a.agent.periods.map((p) => `${p.key}=${p.used}/${p.cap}(${p.pct.toFixed(1)}%)`).join(' '));
+  else console.log(`[火山 ${tag} Agent] 未订阅或未返回`);
+}
+if (!volcRes?.accounts?.length) {
+  if (volc && !volc.error) console.log(`[火山 Coding] OK ${volc.tier} ` + volc.periods.map((p) => `${p.key}=${p.pct.toFixed(1)}%`).join(' '));
+  else console.log('[火山 Coding] 未采集成功：' + (volc?.error || '未订阅或未返回'));
+  if (volcAgent && !volcAgent.error) console.log(`[火山 Agent] OK ${volcAgent.tier} ` + volcAgent.periods.map((p) => `${p.key}=${p.used}/${p.cap}(${p.pct.toFixed(1)}%)`).join(' '));
+  else console.log('[火山 Agent] 未采集成功：' + (volcAgent?.error || '未订阅或未返回'));
+}
 if (deepseek && !deepseek.error) console.log(`[DeepSeek] OK 余额 ¥${deepseek.total.toFixed(2)}（可用=${deepseek.isAvailable}）`);
 else if (deepseek?.error) console.log('[DeepSeek] 未采集成功');
 else console.log('[DeepSeek] 未配置（config.json 的 deepseekKey 为空，跳过）');

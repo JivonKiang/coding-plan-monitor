@@ -12,3 +12,4 @@ _volc.html
 _ds.html
 data.json.tmp
 _cfgcheck.mjs
+*.log
