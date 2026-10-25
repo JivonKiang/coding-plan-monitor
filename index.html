@@ -33,8 +33,21 @@ svg{display:block;width:100%;height:auto}
 .btn:hover:not(:disabled){border-color:var(--blue);color:#fff}
 .btn:disabled{opacity:.5;cursor:default}
 
+html{scroll-behavior:smooth}
 main{max-width:920px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px;scroll-margin-top:64px}
+.card:target{border-color:var(--blue)}
+
+/* 首屏极简总览 */
+.mini{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.mtile{display:block;padding:10px 12px 11px;border:1px solid var(--line);border-radius:12px;background:var(--card);text-decoration:none;color:var(--txt);transition:border-color .15s,transform .15s}
+.mtile:hover{border-color:#353b4d;text-decoration:none;transform:translateY(-1px)}
+.mname{font-size:11px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mval{font-size:18px;font-weight:700;margin-top:3px;letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mfoot{height:14px;display:flex;align-items:center;margin-top:4px}
+.mbar{flex:1;height:3px;border-radius:2px;background:#1d202a;overflow:hidden}
+.mbar i{display:block;height:100%;border-radius:2px}
+.msub{font-size:10.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .card h2{font-size:12px;font-weight:600;color:var(--mut);letter-spacing:.05em;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 .badge{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--mut);font-weight:500;letter-spacing:0}
 .badge.blue{color:#a9bcff;border-color:#2c3a66}
@@ -109,6 +122,8 @@ footer{max-width:920px;margin:20px auto 0;font-size:11px;color:var(--dim);line-h
   .brand{font-size:13.5px}
   .card{padding:15px;border-radius:14px}
   .grid{grid-template-columns:1fr;gap:12px}
+  .mini{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .mval{font-size:16px}
   .big{font-size:22px}
   .vbig{font-size:22px}
   .row{margin:10px 0}
@@ -142,9 +157,8 @@ footer{max-width:920px;margin:20px auto 0;font-size:11px;color:var(--dim);line-h
 </header>
 <main>
 
-<section class="t card verdict" id="sec-verdict">
-  <h2>今日决策 <span class="badge" id="vbadge">—</span></h2>
-  <div id="vdbody">加载中…</div>
+<section class="mini" id="mini">
+  <a class="mtile" href="#sec-today"><div class="mname">正在读取额度</div><div class="mval">—</div><div class="mfoot"><span class="msub">加载中…</span></div></a>
 </section>
 
 <section class="t card" id="sec-today">
@@ -162,6 +176,11 @@ footer{max-width:920px;margin:20px auto 0;font-size:11px;color:var(--dim);line-h
   <div class="card" id="xfcard"><h2>xf 中转站 <span class="badge purple">按量</span></h2><div id="xfbody">加载中…</div></div>
   <div class="card" id="qfcard"><h2>千帆 Token Plan <span class="badge blue" id="qfplan">—</span></h2><div id="qfbody">加载中…</div></div>
 </div>
+
+<section class="t card verdict" id="sec-verdict">
+  <h2>今日决策 <span class="badge" id="vbadge">—</span></h2>
+  <div id="vdbody">加载中…</div>
+</section>
 
 <details class="more">
 <summary>更多分析 · 节奏 / 外推 / 性价比 / 趋势 / 成本 / 情报 / 配置</summary>
@@ -242,6 +261,29 @@ function winRow(w){
   <div class="meta">${w.approx?'约 ':''}${fmt(w.used)} / ${fmt(w.cap)} · <span class="cd" data-reset="${w.reset||''}">${w.reset?countdown(w.reset)+'重置':'—'}</span></div></div>`;
 }
 const pend=(html)=>`<div class="pend">${html}</div>`;
+
+// 首屏极简总览：每块一个平台，点击锚点跳到下方详情卡
+function renderMini(d){
+  const el=$('mini');if(!el)return;
+  const t=[],wname={session:'5h',weekly:'周',monthly:'月'};
+  const bind=ps=>{if(!Array.isArray(ps))return null;let b=null;for(const p of ps){if(!(p.cap>0))continue;if(!b||p.pct>b.pct)b=p}return b};
+  const tile=(href,name,val,color,foot)=>`<a class="mtile" href="#${href}"><div class="mname">${esc(name)}</div><div class="mval" style="color:${color}">${val}</div><div class="mfoot">${foot.meter!=null?`<span class="mbar"><i style="width:${Math.min(100,foot.meter)}%;background:${color}"></i></span>`:`<span class="msub">${esc(foot.text||'')}</span>`}</div></a>`;
+  const volcTile=(href,ps,base)=>{const w=bind(ps);if(!w)return;t.push(tile(href,`${base} · ${wname[w.key]||''}`,`${w.pct.toFixed(1)}%`,pctColor(w.pct),{meter:w.pct}))};
+  const accts=Array.isArray(d.volcAccounts)?d.volcAccounts:[];
+  const a1=accts[0]||{},a2=accts[1]||{};
+  volcTile('vcard',d.volc?.periods,`火山 Coding${a1.label?' · '+a1.label:''}`);
+  volcTile('vacard',d.volcAgent?.periods,`火山 Agent${a1.label?' · '+a1.label:''}`);
+  volcTile('vcard2',a2.coding?.periods,`火山 Coding${a2.label?' · '+a2.label:''}`);
+  volcTile('vacard2',a2.agent?.periods,`火山 Agent${a2.label?' · '+a2.label:''}`);
+  const x=d.xf;
+  if(x&&!x.error)t.push(tile('xfcard','xf 中转',`$${(x.todayCost||0).toFixed(2)}`,'var(--orange)',{text:`今日 · 余额 $${(x.balance||0).toFixed(0)}`}));
+  const q=d.qianfan;
+  if(q&&!q.error){const c=q.pct==null?'var(--mut)':q.pct<10?'var(--red)':q.pct<20?'var(--amber)':'var(--green)';
+    t.push(tile('qfcard',`千帆 ${(q.plan||'').toUpperCase()} · 余量`,`${q.pct!=null?q.pct.toFixed(1)+'%':'—'}`,c,{meter:q.pct||0}))}
+  const ds=d.deepseek;
+  if(ds&&!ds.error)t.push(tile('dscard','DeepSeek 官方',`¥${(ds.total||0).toFixed(2)}`,'var(--txt)',{text:'余额 · 按量'}));
+  el.innerHTML=t.join('')||'<a class="mtile" href="#sec-today"><div class="mname">额度数据缺失</div><div class="mval">—</div><div class="mfoot"><span class="msub">查看今日消耗</span></div></a>';
+}
 
 function renderDeepseek(ds){
   const el=$('dsbody');
@@ -577,6 +619,7 @@ function updateUpd(){
 function render(d){
   const z=d.zhipu,v=d.volc;
   lastTs=d.ts||0;updateUpd();
+  renderMini(d);
   // 智谱（已退订，zhipu=null 时显示退订态；旧快照残留数据时仍可展示）
   if(z&&z.limits){
     $('zbody').innerHTML=z.limits.map(winRow).join('')+
@@ -647,11 +690,14 @@ function render(d){
   const vS=v&&v.periods?v.periods.find(p=>p.key==='session'):null;
   const vW=v&&v.periods&&!v.error?v.periods.find(p=>p.key==='weekly'):null;
   let tHtml='';
-  if(vS&&!v.error){
+  if(vW&&vW.pct>=99){
+    tHtml+=`<div class="big" style="color:var(--red)">本周额度已用尽</div><div class="sub">火山 Coding 周窗口 ${fmt(vW.used)} / ${fmt(vW.cap)} 次${vW.reset?` · ${countdown(vW.reset)}重置`:''} · 5 小时窗口 0.0% 是因为周额度已打满、无新增调用，不是采集异常</div>`;
+  } else if(vS&&!v.error){
     tHtml+=`<div class="big">${vS.pct.toFixed(1)}%</div><div class="sub">火山 5 小时窗口用量 · 已用约 ${fmt(vS.used)} / ${fmt(vS.cap)} tk（按容量反推估算）${vW?` · 本周窗口 ${vW.pct.toFixed(1)}%`:''}</div>`;
   } else tHtml+=`<div class="sub" style="color:var(--red)">火山窗口数据缺失</div>`;
   if(x&&!x.error){
-    tHtml+=`<div class="big" style="margin-top:10px">${fmt(x.todayTokens)}</div><div class="sub">xf 今日 tokens · ${fmt(x.todayRequests)} 次调用 · $${(x.todayCost||0).toFixed(2)} ≈ ¥${((x.todayCost||0)*xrate).toFixed(2)}（xf 中转口径）</div>`;
+    const unit=x.todayTokens>0?(x.todayCost||0)*xrate/x.todayTokens*1e6:null;
+    tHtml+=`<div class="big" style="margin-top:10px">${fmt(x.todayTokens)}</div><div class="sub">xf 今日 tokens · ${fmt(x.todayRequests)} 次调用 · $${(x.todayCost||0).toFixed(2)} ≈ ¥${((x.todayCost||0)*xrate).toFixed(2)}${unit!=null?` · 单价 ≈¥${unit.toFixed(2)}/M tk`:''}（xf 中转实扣口径）</div>`;
   }
   $('tbody').innerHTML=tHtml||'<span class="err">今日数据缺失</span>';
   // 节奏与续航预测
