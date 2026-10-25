@@ -88,6 +88,16 @@ tr:last-child td{border-bottom:none}
 .vact b{font-size:13px;display:block;font-weight:600}
 .vact .d{font-size:11.5px;color:var(--mut);line-height:1.65;display:block;margin-top:2px}
 
+/* 每日财务提示（当天生成、当天冻结） */
+.advbox{margin-bottom:14px;padding:11px 13px;background:#0d0f15;border:1px solid #232836;border-radius:12px}
+.advhd{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;font-weight:700;letter-spacing:.4px;color:var(--blue);margin-bottom:6px}
+.advhd span{font-weight:400;color:var(--mut);letter-spacing:0}
+.advrow{display:flex;gap:9px;align-items:flex-start;padding:6px 0}
+.advrow+.advrow{border-top:1px solid #191d27}
+.advdot{flex:0 0 7px;width:7px;height:7px;border-radius:50%;margin-top:6px}
+.advrow b{font-size:12.5px;display:block;font-weight:600}
+.advrow .d{font-size:11.5px;color:var(--mut);line-height:1.6;display:block;margin-top:2px}
+
 /* 列表与说明 */
 .tips{list-style:none;margin-top:2px}
 .tips li{display:flex;gap:9px;font-size:12.5px;line-height:1.7;padding:8px 0;border-bottom:1px solid #1b1e26}
@@ -563,7 +573,12 @@ function renderVerdict(d){
   if(vs&&vs.pct!=null&&vs.pct>=90)hot.push('火山 5h '+vs.pct.toFixed(0)+'%');
   if(z5&&z5.pct!=null&&z5.pct>=90)hot.push('智谱 5h '+z5.pct.toFixed(0)+'%');
   if(hot.length)acts.push(['red','当前高峰窗口近上限 —— 紧急任务切兜底',hot.join('、')+' → 现在就切 xf / DeepSeek，窗口重置后回火山']);
-  el.innerHTML=`<div class="vbig" style="color:${col}">${fc.bt}</div><div class="vwhy">${why}</div>`+
+  const adv=(d.advice&&Array.isArray(d.advice.items))?d.advice:null;
+  const advHtml=adv&&adv.items.length
+    ?`<div class="advbox"><div class="advhd">财务提示 · 每日<span>${esc(adv.date)} 生成</span></div>`+
+      adv.items.map(it=>`<div class="advrow"><span class="advdot" style="background:var(--${it.level||'blue'})"></span><div><b>${esc(it.title)}</b><span class="d">${esc(it.detail)}</span></div></div>`).join('')+`</div>`
+    :'';
+  el.innerHTML=advHtml+`<div class="vbig" style="color:${col}">${fc.bt}</div><div class="vwhy">${why}</div>`+
     (acts.length?`<div class="vacts">`+acts.map((a,i)=>`<div class="vact"><span class="vnum" style="background:var(--${a[0]})">${i+1}</span><div><b>${a[1]}</b><span class="d">${a[2]}</span></div></div>`).join('')+`</div>`:'')+
     ((d.daily||[]).length<3?`<div class="note">判断基于 daily 快照外推，当前仅积累 ${(d.daily||[]).length} 天，满 3 天后自动切换近端日均，结论更准。</div>`:'');
   badge.className='badge'+(fc.bc?' '+fc.bc:'');

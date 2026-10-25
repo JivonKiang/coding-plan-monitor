@@ -267,7 +267,20 @@ async function fetchXf() {
   }
   let keysCount = null;
   try { const k = await xfApi('/api/v1/keys', token); keysCount = (k.items || []).length; } catch { /* 可选 */ }
+  // 近 7 日分模型花费（用于财务提示：钱到底花在哪个模型）
+  let models = null;
+  try {
+    const md = await xfApi('/api/v1/usage/dashboard/models', token)
+      .catch(async (e) => (e.status === 401 ? xfApi('/api/v1/usage/dashboard/models', await xfLogin()) : Promise.reject(e)));
+    models = (md.models || []).map((m) => ({
+      model: m.model,
+      requests: m.requests,
+      tokens: m.total_tokens,
+      actualCost: Number(m.actual_cost) || 0,
+    }));
+  } catch { /* 可选 */ }
   return {
+    models,
     baseUrl: xfBase(),
     cnyPerUsd: Number(cfg.xf?.cnyPerUsd) || 0.1479, // 充值比例 ¥300 = $2028，$1 ≈ ¥0.1479
     balance: Number(profile.balance) || 0,
@@ -407,6 +420,79 @@ async function fetchQianfan() {
   throw new Error(QF_ERROR);
 }
 
+// ---------- 每日财务提示（当天生成一次，当天冻结，避免 2 分钟采集抖动）----------
+function buildAdvice({ accounts, xf, qianfan, daily, today }) {
+  const items = [];
+  const push = (level, title, detail) => { if (items.length < 4) items.push({ level, title, detail }); };
+  const usd = (n) => '$' + (Number(n) || 0).toFixed(2);
+  const rate = Number(xf?.cnyPerUsd) || 0.1479;
+
+  // ① xf 余额续航：用前几个完整日的日均消耗，不把今天的半截算进去
+  if (xf && !xf.error && Number.isFinite(xf.balance)) {
+    const hist = (daily || []).filter((d) => d.date !== today).slice(-3);
+    const pool = (hist.length ? hist : (daily || []).slice(-3))
+      .map((d) => Number(d.xfCost)).filter((n) => Number.isFinite(n) && n > 0);
+    const avg = pool.length ? pool.reduce((a, b) => a + b, 0) / pool.length : 0;
+    if (avg > 0) {
+      const days = xf.balance / avg;
+      const line = `余额 ${usd(xf.balance)}（≈¥${(xf.balance * rate).toFixed(0)}）· 近 ${pool.length} 日均 ${usd(avg)}/天 · 可撑 ≈${days.toFixed(1)} 天`;
+      if (days < 5) push('red', 'xf 余额告急：本周内必须充值', line + '。按量通道是火山撞限后的唯一兜底，断档会直接卡住高峰任务。');
+      else if (days < 10) push('amber', 'xf 余额偏紧：一周内安排充值', line + '。');
+      else push('green', `xf 余额可撑 ≈${Math.floor(days)} 天，暂不用动`, line + '。');
+    }
+  }
+
+  // ② 千帆 Pro：按账期内已用速率外推耗尽日
+  if (qianfan && !qianfan.error && qianfan.total > 0 && qianfan.effectiveAt) {
+    const elapsed = Math.max((Date.now() - new Date(qianfan.effectiveAt).getTime()) / 864e5, 0.5);
+    const perDay = qianfan.used / elapsed;
+    if (perDay > 0) {
+      const daysLeft = qianfan.remain / perDay;
+      const line = `已用 ${Math.round(qianfan.pct)}%（${Math.round(qianfan.used).toLocaleString()}/${qianfan.total.toLocaleString()}）· ${elapsed.toFixed(1)} 天均 ${Math.round(perDay).toLocaleString()}/天 · 约 ${Math.ceil(daysLeft)} 天后耗尽`;
+      if (daysLeft < 3) push('red', '千帆 Pro 即将耗尽：收强度或申请加购', line + '。加购/升级属花钱动作，需主任批准后再动。');
+      else if (daysLeft < 7) push('amber', '千帆 Pro 用量偏快', line + '。检索/文档类优先压到 xf 低价模型。');
+      else push('blue', '千帆 Pro 节奏正常', line + '。');
+    }
+  }
+
+  // ③ 火山各账号已满窗口汇总（满额后继续硬顶只会限流重试）
+  const full = [];
+  for (const a of (accounts || [])) {
+    const tag = a.label || a.profile || '默认';
+    for (const [name, plan] of [['Coding', a.coding], ['Agent', a.agent]]) {
+      for (const p of (plan?.periods || [])) {
+        if (Number(p.pct) >= 98) full.push(`${tag} ${name} ${p.label} ${Number(p.pct).toFixed(0)}%`);
+      }
+    }
+  }
+  if (full.length) push('red', '火山额度已满：重活立刻切 xf / 8942', full.join('、') + '。满额窗口内请求会被限流。');
+
+  // ④ 花费集中度：头部模型占一半以上时给单价对比与替代建议
+  const models = (xf && !xf.error && Array.isArray(xf.models)) ? xf.models.filter((m) => Number(m.actualCost) > 0) : [];
+  if (models.length) {
+    const total = models.reduce((a, m) => a + Number(m.actualCost), 0);
+    const sorted = [...models].sort((a, b) => b.actualCost - a.actualCost);
+    const top = sorted[0];
+    const unit = (m) => (m.tokens > 0 ? (Number(m.actualCost) / m.tokens) * 1e6 : 0);
+    const share = total > 0 ? top.actualCost / total : 0;
+    if (share >= 0.5) {
+      const alt = sorted.slice(1).find((m) => unit(m) > 0 && unit(m) < unit(top) * 0.7);
+      let detail = `近期 ${usd(top.actualCost)}（占 ${usd(total)} 的 ${Math.round(share * 100)}%），单价 $${unit(top).toFixed(2)}/M tk`;
+      if (alt) {
+        const save = top.actualCost - (top.tokens / 1e6) * unit(alt);
+        detail += `；同量级 ${alt.model} 仅 $${unit(alt).toFixed(2)}/M，非关键任务切过去可省 ≈${usd(save)}（≈¥${Math.round(save * rate)}）`;
+      }
+      push('amber', `${top.model} 吃掉 ${Math.round(share * 100)}% 花费`, detail + '。');
+    }
+  }
+
+  // 严重度排序：红 → 黄 → 蓝 → 绿
+  const rank = { red: 0, amber: 1, blue: 2, green: 3 };
+  items.sort((a, b) => (rank[a.level] ?? 9) - (rank[b.level] ?? 9));
+
+  return { date: today, generatedAt: Date.now(), items };
+}
+
 // ---------- 主流程 ----------
 const zhipu = await safe(fetchZhipu, '智谱');
 const volcRes = await safe(fetchVolc, '火山');
@@ -421,10 +507,10 @@ const zWorstPct = zhipu?.limits?.length ? Math.max(...zhipu.limits.map((l) => l.
 const vSessionPct = volc?.periods?.find((p) => p.key === 'session')?.pct ?? null;
 
 // history：追加本次快照，保留最近 200 条；daily：按天聚合消耗快照（趋势预测数据底座）
-let history = [], daily = [];
+let history = [], daily = [], prevAdvice = null;
 const dataPath = join(ROOT, 'data.json');
 if (existsSync(dataPath)) {
-  try { const prev = JSON.parse(readFileSync(dataPath, 'utf8')); history = prev.history || []; daily = prev.daily || []; } catch {}
+  try { const prev = JSON.parse(readFileSync(dataPath, 'utf8')); history = prev.history || []; daily = prev.daily || []; prevAdvice = prev.advice || null; } catch {}
 }
 history.push({ ts: Date.now(), zWorstPct, vSessionPct });
 history = history.slice(-200);
@@ -447,7 +533,12 @@ if (di >= 0) { const old = daily[di]; for (const k of Object.keys(snap)) if (sna
 else daily.push(snap);
 daily = daily.slice(-60);
 
-const data = { ts: Date.now(), zhipu, volc, volcAgent, volcAccounts: volcRes?.accounts || null, deepseek, xf, qianfan, intel, history, daily };
+// 财务提示：每天零点后首次采集生成，当天冻结（同日多轮采集沿用旧结论）
+const advice = (prevAdvice && prevAdvice.date === today)
+  ? prevAdvice
+  : buildAdvice({ accounts: volcRes?.accounts || null, xf, qianfan, daily, today });
+
+const data = { ts: Date.now(), zhipu, volc, volcAgent, volcAccounts: volcRes?.accounts || null, deepseek, xf, qianfan, intel, history, daily, advice };
 // 原子写：页面每 2 分钟拉一次，直接覆写会撞上"文件只写了一半"导致 JSON 解析失败（表现为部分卡片停在"加载中"）
 writeFileSync(dataPath + '.tmp', JSON.stringify(data));
 renameSync(dataPath + '.tmp', dataPath);
