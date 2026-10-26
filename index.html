@@ -3,34 +3,55 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F7F5EF">
 <title>Coding Plan 额度总览</title>
+<script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}</script>
 <style>
 :root{
-  --bg:#090a0d; --card:#12141a; --card2:#181b22; --line:#22252e;
-  --txt:#e9ebf1; --mut:#8a90a0; --dim:#5f6574;
-  --blue:#6d8dff; --orange:#ff8a4c; --green:#3ddc97; --amber:#f2b544; --red:#ff6b6b; --purple:#a78bfa;
+  --paper:#F7F5EF; --ink:#191B1E; --ink-2:#454A51; --muted:#84898F;
+  --line:#E4DFD3; --line-2:#CCC6B8;
+  --accent:#0E5A50; --accent-bg:#E4EEEA;
+  --serif:"Iowan Old Style","Palatino Linotype","Songti SC","Noto Serif SC",Georgia,"Times New Roman",serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Code",Consolas,"JetBrains Mono",Menlo,monospace;
+  --card:#FFFFFF; --card2:#F1EFE8;
+  --track:#E9E5DA;
+  --green:#15803d; --amber:#B45309; --red:#B91C1C; --orange:#C2570A; --purple:#7c3aed;
   --r:16px;
+  /* 旧名别名（既有 CSS/JS 内联样式仍引用） */
+  --bg:var(--paper); --txt:var(--ink); --mut:var(--muted); --dim:var(--muted); --blue:var(--accent);
 }
+html[data-theme="dark"]{
+  --paper:#0B0D0E; --ink:#EAEAE6; --ink-2:#B4B8BC; --muted:#7E848B;
+  --line:#22272B; --line-2:#383E44;
+  --accent:#6FC7B9; --accent-bg:rgba(111,199,185,.12);
+  --card:#14171B; --card2:#1B1F24;
+  --track:#1D2126;
+  --green:#4ade80; --amber:#f2b544; --red:#ff8a8a; --orange:#ffa06b; --purple:#c4b0f5;
+}
+html[data-theme="dark"] body{background-image:radial-gradient(760px 380px at 18% -8%,rgba(111,199,185,.07),transparent 62%)}
+html[data-theme="dark"] .verdict{background:linear-gradient(155deg,#14171B 0%,#101318 62%)}
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
-body{background:var(--bg);background-image:radial-gradient(760px 380px at 18% -8%,rgba(109,141,255,.10),transparent 62%);
-  color:var(--txt);font-family:system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+body{background:var(--paper);background-image:radial-gradient(760px 380px at 18% -8%,rgba(14,90,80,.06),transparent 62%);
+  color:var(--ink);font-family:var(--sans);
   font-size:14px;padding:0 16px 56px}
-a{color:#a3b8ff;text-decoration:none}
+a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
-code{background:#1b1e26;padding:1px 5px;border-radius:5px;font-size:11px;color:#c6cbd9}
+code{background:var(--card2);padding:1px 5px;border-radius:5px;font-size:11px;color:var(--ink-2)}
 svg{display:block;width:100%;height:auto}
 
 /* 顶栏 */
 .topbar{position:sticky;top:0;z-index:40;max-width:920px;margin:0 auto;display:flex;align-items:center;gap:10px;
-  padding:14px 0 12px;background:linear-gradient(180deg,var(--bg) 72%,rgba(9,10,13,0))}
-.brand{display:flex;align-items:center;gap:9px;font-size:14.5px;font-weight:700;letter-spacing:.2px}
-.dot-live{flex:0 0 7px;width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px rgba(61,220,151,.13)}
+  padding:14px 0 12px;background:linear-gradient(180deg,var(--paper) 72%,transparent)}
+.brand{display:flex;align-items:center;gap:9px;font-family:var(--serif);font-size:14.5px;font-weight:700;letter-spacing:.2px}
+.dot-live{flex:0 0 7px;width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px rgba(14,90,80,.15)}
+html[data-theme="dark"] .dot-live{box-shadow:0 0 0 4px rgba(111,199,185,.15)}
 .spacer{flex:1}
 #upd,#next{font-size:11.5px;color:var(--mut);font-variant-numeric:tabular-nums;white-space:nowrap}
 #upd.stale{color:var(--red)}
 .btn{background:var(--card2);border:1px solid var(--line);color:var(--txt);font-size:12px;padding:6px 14px;border-radius:999px;cursor:pointer;font-family:inherit}
-.btn:hover:not(:disabled){border-color:var(--blue);color:#fff}
+.btn:hover:not(:disabled){border-color:var(--accent);color:inherit}
 .btn:disabled{opacity:.5;cursor:default}
 
 html{scroll-behavior:smooth}
@@ -41,20 +62,20 @@ main{max-width:920px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
 /* 首屏极简总览 */
 .mini{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
 .mtile{display:block;padding:10px 12px 11px;border:1px solid var(--line);border-radius:12px;background:var(--card);text-decoration:none;color:var(--txt);transition:border-color .15s,transform .15s}
-.mtile:hover{border-color:#353b4d;text-decoration:none;transform:translateY(-1px)}
+.mtile:hover{border-color:var(--line-2);text-decoration:none;transform:translateY(-1px)}
 .mname{font-size:11px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mval{font-size:18px;font-weight:700;margin-top:3px;letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mval{font-family:var(--mono);font-size:18px;font-weight:700;margin-top:3px;letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mfoot{height:14px;display:flex;align-items:center;margin-top:4px}
-.mbar{flex:1;height:3px;border-radius:2px;background:#1d202a;overflow:hidden}
+.mbar{flex:1;height:3px;border-radius:2px;background:var(--track);overflow:hidden}
 .mbar i{display:block;height:100%;border-radius:2px}
 .msub{font-size:10.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.card h2{font-size:12px;font-weight:600;color:var(--mut);letter-spacing:.05em;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.card h2{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--mut);letter-spacing:.05em;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 .badge{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--mut);font-weight:500;letter-spacing:0}
-.badge.blue{color:#a9bcff;border-color:#2c3a66}
-.badge.orange{color:#ffb88a;border-color:#5c3a22}
-.badge.red{color:#ff9d9d;border-color:#5e2727}
-.badge.amber{color:#ffd88a;border-color:#5a4520}
-.badge.purple{color:#c9b6ff;border-color:#3d3566}
+.badge.blue{color:var(--accent);border-color:var(--accent);opacity:.85}
+.badge.orange{color:var(--orange);border-color:var(--orange);opacity:.85}
+.badge.red{color:var(--red);border-color:var(--red);opacity:.85}
+.badge.amber{color:var(--amber);border-color:var(--amber);opacity:.85}
+.badge.purple{color:var(--purple);border-color:var(--purple);opacity:.85}
 
 /* 平台额度 */
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
@@ -62,59 +83,59 @@ main{max-width:920px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
 .row{margin:12px 0}
 .row .top{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;margin-bottom:6px}
 .row .top b{font-weight:600}
-.pct{font-variant-numeric:tabular-nums;font-weight:700;font-size:12.5px}
-.bar{height:6px;border-radius:99px;background:#1d202a;overflow:hidden}
+.pct{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:700;font-size:12.5px}
+.bar{height:6px;border-radius:99px;background:var(--track);overflow:hidden}
 .bar i{display:block;height:100%;border-radius:99px;transition:width .5s ease}
 .meta{font-size:11px;color:var(--dim);margin-top:5px;font-variant-numeric:tabular-nums}
-.cd{color:#9aa2b8}
-.big{font-size:26px;font-weight:800;letter-spacing:-.6px;font-variant-numeric:tabular-nums}
+.cd{color:var(--muted)}
+.big{font-family:var(--mono);font-size:26px;font-weight:800;letter-spacing:-.6px;font-variant-numeric:tabular-nums}
 .sub{font-size:11.5px;color:var(--mut);margin-top:3px}
 
 table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:10px}
-th,td{text-align:right;padding:7px 4px;border-bottom:1px solid #1b1e26;white-space:nowrap}
+th,td{text-align:right;padding:7px 4px;border-bottom:1px solid var(--line);white-space:nowrap}
 th:first-child,td:first-child{text-align:left}
 th{color:var(--dim);font-weight:500;font-size:11px}
 tr:last-child td{border-bottom:none}
 
 /* 今日决策 */
-.verdict{background:linear-gradient(155deg,#171b26 0%,#111319 62%);border-color:#272c3a}
-.verdict h2{color:#9aa4bd}
-.vbig{font-size:28px;font-weight:800;letter-spacing:-.7px;line-height:1.25}
+.verdict{background:linear-gradient(155deg,#FFFFFF 0%,#F1EFE8 62%);border-color:var(--line)}
+.verdict h2{color:var(--ink-2)}
+.vbig{font-family:var(--mono);font-size:28px;font-weight:800;letter-spacing:-.7px;line-height:1.25}
 .vwhy{font-size:13px;color:var(--mut);margin-top:8px;line-height:1.8}
 .vwhy b{color:var(--txt)}
 .vacts{margin-top:16px;display:flex;flex-direction:column;gap:8px}
-.vact{display:flex;gap:10px;align-items:flex-start;background:#0e1016;border:1px solid var(--line);border-radius:12px;padding:11px 13px}
-.vnum{flex:0 0 20px;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#0a0b0e;margin-top:1px}
+.vact{display:flex;gap:10px;align-items:flex-start;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:11px 13px}
+.vnum{flex:0 0 20px;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;margin-top:1px}
 .vact b{font-size:13px;display:block;font-weight:600}
 .vact .d{font-size:11.5px;color:var(--mut);line-height:1.65;display:block;margin-top:2px}
 
 /* 每日财务提示（当天生成、当天冻结） */
-.advbox{margin-bottom:14px;padding:11px 13px;background:#0d0f15;border:1px solid #232836;border-radius:12px}
+.advbox{margin-bottom:14px;padding:11px 13px;background:var(--card2);border:1px solid var(--line);border-radius:12px}
 .advhd{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;font-weight:700;letter-spacing:.4px;color:var(--blue);margin-bottom:6px}
 .advhd span{font-weight:400;color:var(--mut);letter-spacing:0}
 .advrow{display:flex;gap:9px;align-items:flex-start;padding:6px 0}
-.advrow+.advrow{border-top:1px solid #191d27}
+.advrow+.advrow{border-top:1px solid var(--line)}
 .advdot{flex:0 0 7px;width:7px;height:7px;border-radius:50%;margin-top:6px}
 .advrow b{font-size:12.5px;display:block;font-weight:600}
 .advrow .d{font-size:11.5px;color:var(--mut);line-height:1.6;display:block;margin-top:2px}
 
 /* 列表与说明 */
 .tips{list-style:none;margin-top:2px}
-.tips li{display:flex;gap:9px;font-size:12.5px;line-height:1.7;padding:8px 0;border-bottom:1px solid #1b1e26}
+.tips li{display:flex;gap:9px;font-size:12.5px;line-height:1.7;padding:8px 0;border-bottom:1px solid var(--line)}
 .tips li:last-child{border-bottom:none}
 .dot{flex:0 0 8px;width:8px;height:8px;border-radius:50%;margin-top:7px}
-.krow{display:flex;justify-content:space-between;gap:14px;font-size:12.5px;padding:8px 0;border-bottom:1px solid #1b1e26}
+.krow{display:flex;justify-content:space-between;gap:14px;font-size:12.5px;padding:8px 0;border-bottom:1px solid var(--line)}
 .krow:last-child{border-bottom:none}
 .krow b{font-weight:600;flex:0 0 auto;color:var(--txt)}
 .krow span{color:var(--mut);text-align:right}
 .note{font-size:11.5px;color:var(--mut);margin-top:12px;line-height:1.9}
-.pend{border:1px dashed #2b3040;border-radius:12px;padding:12px;color:var(--mut);font-size:12.5px;line-height:1.8}
+.pend{border:1px dashed var(--line-2);border-radius:12px;padding:12px;color:var(--mut);font-size:12.5px;line-height:1.8}
 .err{color:var(--red);font-size:13px}
 .legend{display:flex;gap:14px;font-size:11px;color:var(--dim);margin-top:8px;flex-wrap:wrap}
 .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 
 /* 折叠的深度分析 */
-details.more{border:1px solid var(--line);border-radius:var(--r);background:#0d0f14;padding:0 18px}
+details.more{border:1px solid var(--line);border-radius:var(--r);background:var(--card2);padding:0 18px}
 details.more>summary{list-style:none;cursor:pointer;padding:16px 0;font-size:12.5px;color:var(--mut);
   display:flex;align-items:center;gap:8px;user-select:none;-webkit-user-select:none}
 details.more>summary::-webkit-details-marker{display:none}
@@ -144,7 +165,7 @@ footer{max-width:920px;margin:20px auto 0;font-size:11px;color:var(--dim);line-h
   details.more{padding:0 15px}
   /* 4 列决策表 → 手机端改成堆叠卡片，避免挤成竖排断字 */
   #sec-advice table,#sec-cost table{display:block;margin-top:8px}
-  #sec-advice table tr,#sec-cost table tr{display:block;padding:9px 0;border-bottom:1px solid #1b1e26}
+  #sec-advice table tr,#sec-cost table tr{display:block;padding:9px 0;border-bottom:1px solid var(--line)}
   #sec-advice table tr:first-child,#sec-cost table tr:first-child{display:none}
   #sec-advice table td,#sec-cost table td{display:block;text-align:left;border:none;padding:1px 0;line-height:1.65}
   #sec-advice table td:nth-child(1),#sec-cost table td:nth-child(1){font-weight:600;font-size:12.5px;color:var(--txt)}
@@ -163,6 +184,7 @@ footer{max-width:920px;margin:20px auto 0;font-size:11px;color:var(--dim);line-h
   <span class="spacer"></span>
   <span id="upd">加载中…</span>
   <span id="next"></span>
+  <button class="btn" id="themeBtn" title="切换浅色/暗色" style="padding:6px 11px">◐</button>
   <button class="btn" id="refreshBtn">刷新</button>
 </header>
 <main>
@@ -279,12 +301,25 @@ function renderMini(d){
   const bind=ps=>{if(!Array.isArray(ps))return null;let b=null;for(const p of ps){if(!(p.cap>0))continue;if(!b||p.pct>b.pct)b=p}return b};
   const tile=(href,name,val,color,foot)=>`<a class="mtile" href="#${href}"><div class="mname">${esc(name)}</div><div class="mval" style="color:${color}">${val}</div><div class="mfoot">${foot.meter!=null?`<span class="mbar"><i style="width:${Math.min(100,foot.meter)}%;background:${color}"></i></span>`:`<span class="msub">${esc(foot.text||'')}</span>`}</div></a>`;
   const volcTile=(href,ps,base)=>{const w=bind(ps);if(!w)return;t.push(tile(href,`${base} · ${wname[w.key]||''}`,`${w.pct.toFixed(1)}%`,pctColor(w.pct),{meter:w.pct}))};
+  // 保护①：账号采集失败显示红色失败卡，而不是静默消失
+  const volcAcct=(acct,kind,href)=>{
+    if(!acct)return;
+    const base=`火山 ${kind==='coding'?'Coding':'Agent'}${acct.label?' · '+acct.label:''}`;
+    const w=acct.error?null:bind(acct[kind]?.periods);
+    if(w)t.push(tile(href,base,`${w.pct.toFixed(1)}%`,pctColor(w.pct),{meter:w.pct}));
+    else if(acct.error)t.push(tile(href,base,'采集失败','var(--red)',{text:String(acct.error).slice(0,42)}));
+  };
   const accts=Array.isArray(d.volcAccounts)?d.volcAccounts:[];
-  const a1=accts[0]||{},a2=accts[1]||{};
-  volcTile('vcard',d.volc?.periods,`火山 Coding${a1.label?' · '+a1.label:''}`);
-  volcTile('vacard',d.volcAgent?.periods,`火山 Agent${a1.label?' · '+a1.label:''}`);
-  volcTile('vcard2',a2.coding?.periods,`火山 Coding${a2.label?' · '+a2.label:''}`);
-  volcTile('vacard2',a2.agent?.periods,`火山 Agent${a2.label?' · '+a2.label:''}`);
+  if(accts.length){
+    const a1=accts[0]||{},a2=accts[1]||{};
+    volcAcct(a1,'coding','vcard');volcAcct(a1,'agent','vacard');
+    volcAcct(a2,'coding','vcard2');volcAcct(a2,'agent','vacard2');
+  }else{
+    if(d.volc&&d.volc.error)t.push(tile('vcard','火山 Coding','采集失败','var(--red)',{text:String(d.volc.error).slice(0,42)}));
+    else volcTile('vcard',d.volc?.periods,'火山 Coding');
+    if(d.volcAgent&&d.volcAgent.error)t.push(tile('vacard','火山 Agent','采集失败','var(--red)',{text:String(d.volcAgent.error).slice(0,42)}));
+    else volcTile('vacard',d.volcAgent?.periods,'火山 Agent');
+  }
   const x=d.xf;
   if(x&&!x.error)t.push(tile('xfcard','xf 中转',`$${(x.todayCost||0).toFixed(2)}`,'var(--orange)',{text:`今日 · 余额 $${(x.balance||0).toFixed(0)}`}));
   const q=d.qianfan;
@@ -372,7 +407,7 @@ function renderIntel(it){
   const qfIds=(it.qianfan?.models||[]).map(m=>m.id);
   const qfHtml=`<div class="row"><div class="top"><b>千帆 Token Plan 模型清单</b><span class="pct">${it.qianfan?.count||0} 个</span></div>
     <div class="meta">新增模型会以告警形式提示；清单明细：</div>
-    <details style="margin-top:4px"><summary style="font-size:12px;color:#93c5fd;cursor:pointer">展开 ${qfIds.length} 个模型 id</summary>
+    <details style="margin-top:4px"><summary style="font-size:12px;color:var(--accent);cursor:pointer">展开 ${qfIds.length} 个模型 id</summary>
     <div class="meta" style="line-height:1.9">${qfIds.map(esc).join(' · ')||'—'}</div></details></div>`;
 
   el.innerHTML=`<div class="meta" style="margin-bottom:10px">${srcHtml} · 刷新 ${ago(it.ts)}${it.cached?'（缓存，3 小时一抓）':''}</div>`
@@ -428,7 +463,7 @@ function renderPace(d){
   else if(perWeekCap!=null&&perWeekCap<3){bc='amber';bt='月末吃紧'}
   else if(vW&&vW.pct>=70){bc='amber';bt='周窗口偏高'}
   badge.className='badge'+(bc?' '+bc:'');
-  badge.style.color=bc?'':'var(--green)';badge.style.borderColor=bc?'':'#14532d';
+  badge.style.color=bc?'':'var(--green)';badge.style.borderColor=bc?'':'var(--green)';
   badge.textContent=bt;
 }
 
@@ -518,7 +553,7 @@ function renderForecast(d){
     else{bc='green';bt='续 Pro 稳';}
   }
   badge.className='badge'+(bc?' '+bc:'');
-  badge.style.color=bc?'':'var(--green)';badge.style.borderColor=bc?'':'#14532d';
+  badge.style.color=bc?'':'var(--green)';badge.style.borderColor=bc?'':'var(--green)';
   badge.textContent=bt;
   window._fc={xfDays,xfMonth,xRate,xSrc,bc,bt,proj,ov,ovCost,verdict,burst:burstD?dstr(burstD):null,vRate:vRate!=null?Math.round(vRate):null,vSrc,vCap,ready:true};
 }
@@ -582,7 +617,7 @@ function renderVerdict(d){
     (acts.length?`<div class="vacts">`+acts.map((a,i)=>`<div class="vact"><span class="vnum" style="background:var(--${a[0]})">${i+1}</span><div><b>${a[1]}</b><span class="d">${a[2]}</span></div></div>`).join('')+`</div>`:'')+
     ((d.daily||[]).length<3?`<div class="note">判断基于 daily 快照外推，当前仅积累 ${(d.daily||[]).length} 天，满 3 天后自动切换近端日均，结论更准。</div>`:'');
   badge.className='badge'+(fc.bc?' '+fc.bc:'');
-  badge.style.color=fc.bc?'':'var(--green)';badge.style.borderColor=fc.bc?'':'#14532d';
+  badge.style.color=fc.bc?'':'var(--green)';badge.style.borderColor=fc.bc?'':'var(--green)';
   badge.textContent=fc.bt;
   document.querySelectorAll('.jvdot').forEach(dt=>dt.style.background=col);
 }
@@ -642,22 +677,43 @@ function render(d){
   } else $('zbody').innerHTML='<div class="meta">年费已退，停止监测（2026-10）。</div>';
   // 火山 Coding Plan / Agent Plan
   const vAccts=Array.isArray(d.volcAccounts)?d.volcAccounts:[];
-  if(vAccts[0]&&vAccts[0].label){
-    const e1=$('v1acct');e1.textContent=vAccts[0].label;e1.style.display='';
-    const e2=$('va1acct');e2.textContent=vAccts[0].label;e2.style.display='';
+  const v1=vAccts[0];
+  if(v1&&v1.label){
+    const e1=$('v1acct');e1.textContent=v1.label;e1.style.display='';
+    const e2=$('va1acct');e2.textContent=v1.label;e2.style.display='';
   }
-  if(v&&v.error){$('vedition').textContent='—';$('vbody').innerHTML=`<span class="err">采集失败：${esc(v.error)}</span>`;}
-  else if(v&&v.periods){
-    $('vedition').textContent=v.edition;
-    $('vbody').innerHTML=v.periods.map(p=>winRow({...p,approx:1})).join('');
-  } else $('vbody').innerHTML='<span class="err">火山数据缺失</span>';
-  const va=d.volcAgent;
-  if(va&&va.error){$('vabody').innerHTML=`<span class="err">采集失败：${esc(va.error)}</span>`;}
-  else if(va&&va.periods){
-    $('vaedition').textContent=va.tier?va.tier.charAt(0).toUpperCase()+va.tier.slice(1):'Personal';
-    $('vabody').innerHTML=va.periods.map(p=>winRow(p)).join('')+
-      '<div class="note">额度单位 = AFP 燃料值（非请求次数），Agent 长任务按 token 折算；与 Coding Plan 分开计。</div>';
-  } else $('vabody').innerHTML=pend('未发现已订阅的 Agent Plan，或 arkcli 未返回该 SKU。');
+  if(v1){ // 保护①：详情卡跟随账号状态渲染（错误→失败卡，不再静默或错标）
+    if(v1.error){
+      const n=(d.volcFailStreak&&d.volcFailStreak[v1.label])||1;
+      const msg=`采集失败（连续第 ${n} 轮）：${esc(String(v1.error).slice(0,200))}`;
+      $('vedition').textContent='—';
+      $('vbody').innerHTML=`<span class="err">${msg}</span>`;
+      $('vabody').innerHTML=`<span class="err">${msg}</span>`;
+    } else {
+      if(v1.coding&&v1.coding.periods){
+        $('vedition').textContent=v1.coding.edition;
+        $('vbody').innerHTML=v1.coding.periods.map(p=>winRow({...p,approx:1})).join('');
+      } else $('vbody').innerHTML=pend('未发现已订阅的 Coding Plan，或 arkcli 未返回该 SKU。');
+      if(v1.agent&&v1.agent.periods){
+        $('vaedition').textContent=v1.agent.tier?v1.agent.tier.charAt(0).toUpperCase()+v1.agent.tier.slice(1):'Personal';
+        $('vabody').innerHTML=v1.agent.periods.map(p=>winRow(p)).join('')+
+          '<div class="note">额度单位 = AFP 燃料值（非请求次数），Agent 长任务按 token 折算；与 Coding Plan 分开计。</div>';
+      } else $('vabody').innerHTML=pend('未发现已订阅的 Agent Plan，或 arkcli 未返回该 SKU。');
+    }
+  } else { // 旧快照 fallback：无 volcAccounts 时沿用汇总字段
+    if(v&&v.error){$('vedition').textContent='—';$('vbody').innerHTML=`<span class="err">采集失败：${esc(v.error)}</span>`;}
+    else if(v&&v.periods){
+      $('vedition').textContent=v.edition;
+      $('vbody').innerHTML=v.periods.map(p=>winRow({...p,approx:1})).join('');
+    } else $('vbody').innerHTML='<span class="err">火山数据缺失</span>';
+    const va=d.volcAgent;
+    if(va&&va.error){$('vabody').innerHTML=`<span class="err">采集失败：${esc(va.error)}</span>`;}
+    else if(va&&va.periods){
+      $('vaedition').textContent=va.tier?va.tier.charAt(0).toUpperCase()+va.tier.slice(1):'Personal';
+      $('vabody').innerHTML=va.periods.map(p=>winRow(p)).join('')+
+        '<div class="note">额度单位 = AFP 燃料值（非请求次数），Agent 长任务按 token 折算；与 Coding Plan 分开计。</div>';
+    } else $('vabody').innerHTML=pend('未发现已订阅的 Agent Plan，或 arkcli 未返回该 SKU。');
+  }
   // 火山第二账号（volcAccounts[1]，config.json 里 volcProfiles 的第 2 项）
   const a2=vAccts[1];
   if(a2){
@@ -736,7 +792,7 @@ function trendChart(h){
   // null 点跳过（旧快照 vSessionPct 可能缺失，Y(null)=NaN 会报废整条 path）
   const path=k=>h.map((pt,i)=>pt[k]==null?null:(i?'L':'M')+X(i).toFixed(1)+','+Y(pt[k]).toFixed(1)).filter(Boolean).join('');
   let g='';
-  [0,50,100].forEach(p=>{g+=`<line x1="${P.l}" x2="${W-P.r}" y1="${Y(p)}" y2="${Y(p)}" stroke="#22252d" stroke-width="1"/><text x="${P.l-5}" y="${Y(p)+3}" font-size="9" fill="var(--mut)" text-anchor="end">${p}%</text>`});
+  [0,50,100].forEach(p=>{g+=`<line x1="${P.l}" x2="${W-P.r}" y1="${Y(p)}" y2="${Y(p)}" stroke="var(--line)" stroke-width="1"/><text x="${P.l-5}" y="${Y(p)+3}" font-size="9" fill="var(--mut)" text-anchor="end">${p}%</text>`});
   g+=`<path d="${path('vSessionPct')}" fill="none" stroke="var(--orange)" stroke-width="2"/>`;
   h.forEach((pt,i)=>{if(pt.vSessionPct!=null)g+=`<circle cx="${X(i)}" cy="${Y(pt.vSessionPct)}" r="2.5" fill="var(--orange)"/>`});
   const step=Math.ceil(h.length/6);
@@ -775,6 +831,15 @@ async function load(){
   }
 }
 $('refreshBtn').onclick=()=>{nextAt=0;load()};
+// 主题切换：浅色默认，点击写 localStorage('theme')
+$('themeBtn').onclick=()=>{
+  const root=document.documentElement;
+  const dark=root.getAttribute('data-theme')==='dark';
+  if(dark){root.removeAttribute('data-theme');try{localStorage.setItem('theme','light')}catch(e){}}
+  else{root.setAttribute('data-theme','dark');try{localStorage.setItem('theme','dark')}catch(e){}}
+  const mc=document.querySelector('meta[name="theme-color"]');
+  if(mc)mc.content=dark?'#F7F5EF':'#0B0D0E';
+};
 setInterval(()=>{
   const el=$('next');
   if(!nextAt)return;
