@@ -397,7 +397,9 @@ const pend=(html)=>`<div class="pend">${html}</div>`;
 function renderMini(d){
   const el=$('mini');if(!el)return;
   const t=[],wname={session:'5h',weekly:'周',monthly:'月'};
-  const bind=ps=>{if(!Array.isArray(ps))return null;let b=null;for(const p of ps){if(!(p.cap>0))continue;if(!b||p.pct>b.pct)b=p}return b};
+  // 顶卡统一口径=月窗口（与分发链路/详单/决策原则一致；月窗是"已付费弹药"总量概念）。
+  // 旧版取三窗口最高者导致 8942 顶卡显周窗 98.3% 而详单月窗 75.0%，同页两个数被主任判严重错误。
+  const bind=ps=>{if(!Array.isArray(ps))return null;const m=ps.find(p=>p.key==='monthly'&&p.cap>0);if(m)return m;return ps.find(p=>p.cap>0)||null};
   const tile=(href,name,val,color,foot)=>`<a class="mtile" href="#${href}"><div class="mname">${esc(name)}</div><div class="mval" style="color:${color}">${val}</div><div class="mfoot">${foot.meter!=null?`<span class="mbar"><i style="width:${Math.min(100,foot.meter)}%;background:${color}"></i></span>`:`<span class="msub">${esc(foot.text||'')}</span>`}</div></a>`;
   const volcTile=(href,ps,base)=>{const w=bind(ps);if(!w)return;t.push(tile(href,`${base} · ${wname[w.key]||''}`,`${w.pct.toFixed(1)}%`,pctColor(w.pct),{meter:w.pct}))};
   // 保护①：账号采集失败显示红色失败卡，而不是静默消失
@@ -405,7 +407,7 @@ function renderMini(d){
     if(!acct)return;
     const base=`火山 ${kind==='coding'?'Coding':'Agent'}${acct.label?' · '+acct.label:''}`;
     const w=acct.error?null:bind(acct[kind]?.periods);
-    if(w)t.push(tile(href,base,`${w.pct.toFixed(1)}%`,pctColor(w.pct),{meter:w.pct}));
+    if(w)t.push(tile(href,base+` · ${wname[w.key]||''}`,`${w.pct.toFixed(1)}%`,pctColor(w.pct),{meter:w.pct}));
     else if(acct.error)t.push(tile(href,base,'采集失败','var(--red)',{text:String(acct.error).slice(0,42)}));
   };
   const accts=Array.isArray(d.volcAccounts)?d.volcAccounts:[];
@@ -1162,15 +1164,25 @@ const RT=(function(){
     const N=[];
     const push=(id,label,st,ok,cls)=>N.push({id,label,st,ok,cls});
     const accts=Array.isArray(d.volcAccounts)?d.volcAccounts:[];
-    const volc=accts[0]||(d.volc?{coding:d.volc.coding,agent:d.volc.agent}:{});
+    const volc=accts[0]||(d.volc?{coding:d.volc.coding,agent:d.volc.agent,label:'1753'}:{});
     if(volc&&volc.coding&&volc.coding.periods&&!volc.error){
       const m=volc.coding.periods.find(p=>p.key==='monthly');
-      push('v','火山 Coding',m?`${m.pct.toFixed(1)}% · 月窗`:'—',true,'');
-    } else if(volc&&volc.error)push('v','火山 Coding','采集失败',false,'bad');
+      push('v','火山 Coding '+(volc.label?'· '+volc.label:''),m?`${m.pct.toFixed(1)}% · 月窗`:'—',true,'');
+    } else if(volc&&volc.error)push('v','火山 Coding '+(volc.label?'· '+volc.label:''),'采集失败',false,'bad');
     else push('v','火山 Coding','待接入',false,'');
     if(volc&&volc.agent&&volc.agent.periods&&!volc.error){
       const m=volc.agent.periods.find(p=>p.key==='monthly');
-      push('va','火山 Agent',m?`${m.pct.toFixed(1)}% · 月窗`:'—',true,'');
+      push('va','火山 Agent '+(volc.label?'· '+volc.label:''),m?`${m.pct.toFixed(1)}% · 月窗`:'—',true,'');
+    }
+    // 第二账号（8942）同样上链路，双账号节点全覆盖
+    const v2=accts[1];
+    if(v2&&v2.coding&&v2.coding.periods&&!v2.error){
+      const m=v2.coding.periods.find(p=>p.key==='monthly');
+      push('v2','火山 Coding · '+(v2.label||'8942'),m?`${m.pct.toFixed(1)}% · 月窗`:'—',true,'');
+    } else if(v2&&v2.error)push('v2','火山 Coding · '+(v2.label||'8942'),'采集失败',false,'bad');
+    if(v2&&v2.agent&&v2.agent.periods&&!v2.error){
+      const m=v2.agent.periods.find(p=>p.key==='monthly');
+      push('va2','火山 Agent · '+(v2.label||'8942'),m?`${m.pct.toFixed(1)}% · 月窗`:'—',true,'');
     }
     if(d.xf&&!d.xf.error)push('x','xf 中转',`$${(d.xf.balance||0).toFixed(0)} · 按量`,true,'');
     else if(d.xf&&d.xf.error)push('x','xf 中转','采集失败',false,'bad');
