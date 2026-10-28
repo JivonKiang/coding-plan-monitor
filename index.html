@@ -99,10 +99,11 @@ html[data-theme="dark"] .mp-logo svg{color:var(--accent)}
 .rt-prov{right:0;flex-direction:column;align-items:stretch;gap:2px;min-width:176px;max-width:236px}
 .rt-prov .rt-hd{display:flex;align-items:center;gap:6px;min-width:0}
 .rt-prov .rt-hd b{overflow:hidden;text-overflow:ellipsis}
-/* 窄屏竖向流式：入口居中置顶 → 枢纽 → 上游自上而下（JS 按 wrap.classList 切换） */
-.rtwrap.narrow .rt-agent{left:50%;top:0;transform:translateX(-50%)}
+/* 窄屏竖向流式：入口全宽置顶 → 左廊道干线 → 上游纵排（JS 按 wrap.classList 切换） */
+.rtwrap.narrow .rt-agent{left:4px;right:4px;top:0;transform:none}
 .rtwrap.narrow .rt-prov{min-width:0;max-width:none}
 .rtwrap.narrow .rt-prov .rt-hd b{flex:1 1 auto;min-width:0}
+.rtwrap.narrow .rt-hubwrap{flex-direction:row;gap:9px} /* 标签移到圆右侧：让开垂直干线，不再被线穿 */
 .rt-pkt{fill:var(--accent);stroke:var(--card);stroke-width:1.4}
 .rt-pkt.back{fill:var(--green)}
 .rt-pkt.err{fill:var(--red)}
@@ -971,22 +972,23 @@ const RT=(function(){
     }else if(wrap.style.height)wrap.style.height='';
     let h=wrap.clientHeight;
     const hubEl=$('rtHub'),aEl0=$('rtAgent');
-    // 窄屏：入口置顶居中 → 枢纽在其下 → 上游全宽纵排；hub.y 由入口实高决定
+    // 窄屏：入口全宽置顶 → 枢纽圆在左廊道（标签右伸）→ 上游全宽纵排；hub.x 固定在干线 x=30
     if(narrow){
       if(aEl0){
-        aEl0.style.left='50%';aEl0.style.top='0';aEl0.style.transform='translateX(-50%)';
-        aEl0.style.right='auto';aEl0.style.width='';
+        aEl0.style.left='4px';aEl0.style.right='4px';aEl0.style.top='0';
+        aEl0.style.transform='none';aEl0.style.width='';
       }
       if(hubEl){
         const hubY=(aEl0?aEl0.offsetHeight:48)+46;
-        geom.hub={x:w*.5,y:hubY};
-        hubEl.style.left='50%';hubEl.style.top=hubY+'px';
+        geom.hub={x:30,y:hubY}; // 左廊道：圆心钉在干线 x=30（地铁图式），标签右伸不被线穿
+        hubEl.style.left='4px';hubEl.style.top=hubY+'px';
+        hubEl.style.transform='translate(0,-50%)';
       }
       let y=geom.hub.y+46;
       for(const p of provs){
         p.el.style.top=y+'px';p.el.style.transform='none';
-        p.el.style.left='4px';p.el.style.right='4px';p.el.style.width='calc(100% - 8px)';
-        p.anchor={x:14,y:y+p.el.offsetHeight/2};
+        p.el.style.left='44px';p.el.style.right='4px';p.el.style.width='calc(100% - 48px)';
+        p.anchor={x:44,y:y+p.el.offsetHeight/2};
         y+=p.el.offsetHeight+10;
       }
       const last=provs.length?provs[provs.length-1].el:null;
@@ -1007,8 +1009,8 @@ const RT=(function(){
         p.el.style.right='0';p.el.style.left='auto';p.el.style.width='';
         p.anchor={x:wrap.clientWidth-p.el.offsetWidth-2,y:y};
       }
+      if(hubEl){hubEl.style.left=(geom.hub.x/w*100)+'%';hubEl.style.top=geom.hub.y+'px';hubEl.style.transform='translate(-50%,-50%)'}
       if(aEl0){aEl0.style.left='0';aEl0.style.top='50%';aEl0.style.transform='translateY(-50%)';aEl0.style.right='auto';aEl0.style.width=''}
-      if(hubEl){hubEl.style.left=(geom.hub.x/w*100)+'%';hubEl.style.top=geom.hub.y+'px'}
     }
     drawWires();
   }
@@ -1016,22 +1018,25 @@ const RT=(function(){
     svg.innerHTML='';
     const aEl=$('rtAgent');
     if(wrap.classList.contains('narrow')){
-      // 竖向：入口(顶)↓枢纽 + 枢纽↔各上游（锚在节点左缘中点），短竖曲线
-      const ay=aEl?aEl.offsetTop+aEl.offsetHeight+6:64;
-      const axm=geom.hub.x;
+      // 左廊道地铁图式：干线固定 x=30（不被卡片遮挡）；入口右缘→圆左侧水平进线，
+      // 圆底干线贯到末卡，各卡左缘中点水平短须接入。飞行全程在廊道内可见。
+      const ax=geom.hub.x;
+      const aTop=aEl?aEl.offsetTop:0;
+      const aMid=aTop+(aEl?aEl.offsetHeight:48)/2;
       const seg=document.createElementNS(NS,'path');
-      const my=(ay+geom.hub.y)/2;
-      seg.setAttribute('d',`M${axm-6},${ay} C${axm-6},${my} ${axm-9},${my} ${geom.hub.x-8},${geom.hub.y-22}`);
+      seg.setAttribute('d',`M${ax},${Math.min(aMid,geom.hub.y-28)} L${ax},${geom.hub.y-27}`);
       seg.setAttribute('class','rt-wire');
       seg.dataset.seg='in';
       svg.appendChild(seg);
+      const lastY=provs.length?provs[provs.length-1].anchor.y:geom.hub.y+60;
+      const trunk=document.createElementNS(NS,'path');
+      trunk.setAttribute('d',`M${ax},${geom.hub.y+27} L${ax},${lastY}`);
+      trunk.setAttribute('class','rt-wire');
+      trunk.dataset.seg='in';
+      svg.appendChild(trunk);
       for(const p of provs){
         const path=document.createElementNS(NS,'path');
-        const my2=(geom.hub.y+p.anchor.y)/2;
-        const dx=p.anchor.x-geom.hub.x, dy=p.anchor.y-geom.hub.y;
-        const ang=Math.atan2(dy,Math.abs(dx)+1e-6);
-        const ex=geom.hub.x+Math.cos(ang)*30, ey=geom.hub.y+Math.sin(ang)*30; // 枢纽圆缘(半径30)出发
-        path.setAttribute('d',`M${ex.toFixed(1)},${ey.toFixed(1)} C${ex.toFixed(1)},${my2} ${p.anchor.x-8},${my2} ${p.anchor.x},${p.anchor.y.toFixed(1)}`);
+        path.setAttribute('d',`M${ax},${p.anchor.y.toFixed(1)} L${p.anchor.x},${p.anchor.y.toFixed(1)}`);
         path.setAttribute('class','rt-wire');
         path.dataset.prov=p.id;
         svg.appendChild(path);
@@ -1105,12 +1110,13 @@ const RT=(function(){
     while(myGen===gen){
       if(!provs.length){await sleep(1200);continue}
       const tgt=provs.find(p=>p.ok)||provs[0];
-      const w1=svg.querySelector('path[data-seg="in"]');
+      const w1s=[...svg.querySelectorAll('path[data-seg="in"]')]; // 窄屏两段（入线+干线），宽屏一条
       const w2=svg.querySelector(`path[data-prov="${tgt.id}"]`);
       const hubB=$('rtHubBird');
-      if(!w1||!w2||reduced()){await sleep(1800);continue}
+      if(!w1s.length||!w2||reduced()){await sleep(1800);continue}
       provs.forEach(p=>p.el.classList.remove('act','bad'));
       tgt.el.classList.add('act');
+      w1s.forEach(x=>x.classList.add('live'));
       w2.classList.add('live');
       hubB&&hubB.classList.add('flap');
       setTimeout(()=>hubB&&hubB.classList.remove('flap'),950);
@@ -1125,7 +1131,7 @@ const RT=(function(){
         pkt.setAttribute('visibility','visible');
       };
       b1._onframe=movePkt;
-      await fly(w1,b1,false,850);
+      for(const w of w1s)await fly(w,b1,false,700); // 阶段一：agent→hub（多段串联）
       // 阶段二：hub→provider
       await fly(w2,b1,false,950);
       // 衔住：圆点留在上游节点脉冲
@@ -1139,9 +1145,10 @@ const RT=(function(){
       const b2=mkBird('res');
       b2._onframe=movePkt;
       await fly(w2,b2,true,950);
-      await fly(w1,b2,true,850);
+      for(const w of [...w1s].reverse())await fly(w,b2,true,700);
       b2.classList.add('away');setTimeout(()=>b2.remove(),350);
       pkt.remove();
+      w1s.forEach(x=>x.classList.remove('live'));
       w2.classList.remove('live');
       tgt.el.classList.remove('act');
       await sleep(1100);
