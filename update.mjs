@@ -638,14 +638,19 @@ function collectMagpieHealth() {
 }
 async function maybeNotifyMagpie(h) {
   if (!h || h.error || !(h.finalFail2h > 0)) return;
+  // 告警语义：只对"进行中的中断"报警——最近一个 10 分钟桶里有失败才算当下还在断；
+  // 2h 前的历史失败（如配额重置后自愈）不再反复打扰
+  const recent = (h.buckets || []).slice(-1)[0];
+  if (!recent || !(recent.fail > 0)) return;
   const sp = join(ROOT, 'magpie_alert_state.json');
   let last = 0;
   try { last = JSON.parse(readFileSync(sp, 'utf8')).lastFinalFail || 0; } catch {}
   if (Date.now() - last < 3600 * 1000) return; // 1h 去重
-  const r = spawnSync('python', [join(ROOT, '..', '00_System', 'bin', 'wb_notify.py'),
-    `[magpie] 订阅组近2h有 ${h.finalFail2h} 次请求最终失败（任务级中断）；可用上游 ${h.available}/${h.total}，请查 monitor.jivonlab.com`, '--tag', 'magpie-route'],
-    { shell: true, encoding: 'utf8' });
-  if (r.status === 0) writeFileSync(sp, JSON.stringify({ lastFinalFail: Date.now() }));
+  // spawnSync 直调 node+wb_notify.py（shell:false）：路径含空格（"ai agent"），shell 模式会拆参
+  const n = spawnSync(process.execPath, [join(ROOT, '..', '00_System', 'bin', 'wb_notify.py'),
+    `[magpie] 最近10分钟订阅组仍有 ${recent.fail} 次请求中断（2h累计 ${h.finalFail2h}）；可用上游 ${h.available}/${h.total}，实时状态见 monitor.jivonlab.com`, '--tag', 'magpie-route'],
+    { encoding: 'utf8', shell: false, timeout: 60000, windowsHide: true });
+  if (n.status === 0) writeFileSync(sp, JSON.stringify({ lastFinalFail: Date.now() }));
 }
 
 // ---------- magpie 配置结构（路由组/回退环展示，2026-10-28 主任令；只读结构，不含任何密钥）----------
