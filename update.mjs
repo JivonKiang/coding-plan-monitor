@@ -576,7 +576,7 @@ function collectMagpieHealth() {
   const bump = (id, key) => { const e = perProv.get(id) || { req: 0, ok: 0, rate: 0, quota: 0, otherFail: 0, msSum: 0, msN: 0 }; e[key]++; perProv.set(id, e); return e; };
   let req = 0, finalFail = 0;
   const buckets = new Map();
-  let curGroup = null, curOrder = null;
+  let curGroup = null, curOrder = null, curOrderT = 0;
   for (const name of dayNames) {
     for (const line of tailLines(name)) {
       let r; try { r = JSON.parse(line); } catch { continue; }
@@ -600,22 +600,31 @@ function collectMagpieHealth() {
         else if (tr.fail === 'quota' || (tr.rest && tr.rest.why === 'quota')) e.quota++;
         else e.otherFail++;
       }
-      // 最新一条记录里的 order 携带当前各上游 rest 状态
-      if (Array.isArray(r.order)) { curGroup = r.group || curGroup; curOrder = r.order; }
+      // 最新一条记录里的 order 携带当前各上游 rest 状态；跨天两个文件，只取时间最新者，
+      // 否则旧文件末尾的过期 order 会覆盖新文件的 5 成员组
+      if (Array.isArray(r.order) && t0 >= curOrderT) { curGroup = r.group || curGroup; curOrder = r.order; curOrderT = t0; }
     }
   }
   const members = [];
-  for (const o of (curOrder || [])) {
-    const id = String(o.id || '');
-    if (!id.startsWith('volcengine')) continue;
+  // 成员以最新一条记录的 subscription 组定义为准（含非火山兜底，如千帆福利包）；
+  // order 提供各上游 name/rest 状态；不在 order 里（近期没被轮到）的兜底上游默认 up
+  const groupList = Array.isArray(curGroup?.members) ? curGroup.members : [];
+  const orderedIds = groupList.length
+    ? groupList.map((m) => String(m).split('/')[0])
+    : (curOrder || []).map((o) => String(o.id || ''));
+  const orderMap = new Map((curOrder || []).map((o) => [String(o.id || ''), o]));
+  for (const id of orderedIds) {
+    if (!id) continue;
+    const o = orderMap.get(id);
     const s = perProv.get(id);
     let state = 'up', until = null;
-    if (o.rest) {
-      until = o.rest.until ? Date.parse(o.rest.until) : null;
-      if (o.rest.why === 'rate' && until && until > now) state = 'rate';
-      else if (o.rest.why === 'quota' && until && until > now) state = 'quota';
+    const rest = o?.rest;
+    if (rest) {
+      until = rest.until ? Date.parse(rest.until) : null;
+      if (rest.why === 'rate' && until && until > now) state = 'rate';
+      else if (rest.why === 'quota' && until && until > now) state = 'quota';
     }
-    members.push({ id, name: String(o.name || id), state, until: until && until > now ? until : null,
+    members.push({ id, name: String(o?.name || id), state, until: until && until > now ? until : null,
       rate2h: s?.rate || 0, quota2h: s?.quota || 0, req2h: s?.req || 0,
       avgMs: s?.msN ? Math.round(s.msSum / s.msN) : null });
   }

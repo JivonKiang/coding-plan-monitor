@@ -501,7 +501,16 @@ function renderMagpie(m,h){
       return `<div class="krow"><span>${esc(x.name||x.id)}${until}</span><b>${stc(x.state)} · 近2h ${x.req2h||0} 次</b></div>`;
     }).join('');
     html+=`<div class="row"><div class="top"><b>近 2h 路由健康</b><span class="pct" style="color:${h.available===h.total?'var(--green)':(h.available>0?'var(--amber)':'var(--red)')}">可用 ${h.available}/${h.total}</span></div>${mem}
-    <div class="meta">共 ${h.req2h||0} 次请求 · 最终失败 ${h.finalFail2h||0} 次${h.finalFail2h>0?'（触发邮件告警，1h 去重）':''}</div></div>`;
+    <div class="meta">共 ${h.req2h||0} 次请求 · 任务级中断 ${h.finalFail2h||0} 次${h.finalFail2h>0?'（走 wb_notify 告警，1h 去重；499 主动停止不计）':''}</div></div>`;
+    // 10 分钟请求频率火花条：柱高=该桶请求数，红=含中断、绿=正常（用户令：监测频率+限频）
+    const bks=(h.buckets||[]);
+    if(bks.length>=2){
+      const mx=Math.max(1,...bks.map(x=>x.req));
+      const bars=bks.map(x=>{const ht=Math.max(2,Math.round(x.req/mx*100));const bad=x.fail>0;const lbl=new Date(x.t).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});return `<span title="${lbl}：${x.req} 请求${x.fail?('，'+x.fail+' 中断'):''}" style="flex:1;height:${ht}%;min-height:3px;background:${bad?'var(--red)':'var(--green)'};opacity:${bad?1:.75};border-radius:2px 2px 0 0;display:block"></span>`;}).join('');
+      const peak=mx;
+      html+=`<div class="row"><div class="top"><b>请求频率（10 分钟/柱，红柱含中断）</b><span class="pct">峰 ${peak}/10min</span></div>
+      <div style="display:flex;align-items:flex-end;gap:3px;height:46px;margin:6px 0 2px">${bars}</div></div>`;
+    }
   } else if(h&&h.error){ html+=`<div class="meta">路由健康采集失败：${esc(h.error)}</div>`; }
   el.innerHTML=html||pend('暂无数据');
 }
