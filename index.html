@@ -146,6 +146,13 @@ main{max-width:920px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
 .qfrow b{flex:0 0 46px;text-align:right;font-family:var(--mono);font-weight:600;font-size:10px}
 .qfbar{flex:1;height:4px;border-radius:2px;background:var(--track);overflow:hidden}
 .qfbar i{display:block;height:100%;border-radius:2px}
+/* 火山三窗口瓦片：5h/周/月 三条进度条（2026-10-29 主任令） */
+.v3{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.v3row{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--mut)}
+.v3row>.v3k{flex:0 0 22px;font-style:normal;font-size:10px;color:var(--mut)}
+.v3bar{flex:1;height:4px;border-radius:2px;background:var(--track);overflow:hidden;display:block;min-width:0}
+.v3bar>b{display:block;height:100%;border-radius:2px}
+.v3row>.v3p{flex:0 0 44px;text-align:right;font-family:var(--mono);font-size:10px;font-weight:600;font-variant-numeric:tabular-nums}
 .card h2{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--mut);letter-spacing:.05em;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 .badge{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--mut);font-weight:500;letter-spacing:0}
 .badge.blue{color:var(--accent);border-color:var(--accent);opacity:.85}
@@ -399,18 +406,21 @@ function renderMini(d){
   // 旧版取三窗口最高者导致 8942 顶卡显周窗 98.3% 而详单月窗 75.0%，同页两个数被主任判严重错误。
   const bind=ps=>{if(!Array.isArray(ps))return null;const m=ps.find(p=>p.key==='monthly'&&p.cap>0);if(m)return m;return ps.find(p=>p.cap>0)||null};
   const tile=(href,name,val,color,foot)=>`<a class="mtile" href="#${href}"><div class="mname">${esc(name)}</div><div class="mval" style="color:${color}">${val}</div><div class="mfoot">${foot.meter!=null?`<span class="mbar"><i style="width:${Math.min(100,foot.meter)}%;background:${color}"></i></span>`:`<span class="msub">${esc(foot.text||'')}</span>`}</div></a>`;
-  const volcTile=(href,ps,base)=>{const w=bind(ps);if(!w)return;t.push(tile(href,`${base} · ${wname[w.key]||''}`,`${w.pct.toFixed(1)}%`,pctColor(w.pct),{meter:w.pct}))};
   // 保护①：账号采集失败显示红色失败卡，而不是静默消失
   const tileHtml=(href,name,val,color,footHtml)=>`<a class="mtile" href="#${href}"><div class="mname">${esc(name)}</div><div class="mval" style="color:${color}">${val}</div>${footHtml}</a>`;
-  const footMeter=(pct,color)=>`<div class="mfoot"><span class="mbar"><i style="width:${Math.min(100,pct)}%;background:${color}"></i></span></div>`;
+  // 火山三窗口脚：5h/周/月 三条；cap=0（新套餐未生成）显灰轨 + —
+  const vKeys=[['session','5h'],['weekly','周'],['monthly','月']];
+  const v3Foot=(ps)=>{const rows=vKeys.map(([k,lb])=>{const p=Array.isArray(ps)?ps.find(x=>x.key===k):null;const has=p&&p.cap>0;const col=has?pctColor(p.pct):'var(--mut)';const pct=has?p.pct.toFixed(1)+'%':'—';const w=has?Math.min(100,p.pct):0;return `<span class="v3row"><i class="v3k">${lb}</i><i class="v3bar"><b style="width:${w}%;background:${col}"></b></i><b class="v3p" style="color:${col}">${pct}</b></span>`;}).join('');return `<div class="mfoot" style="height:auto"><div class="v3">${rows}</div></div>`;};
   const volcAcct=(acct,kind,href)=>{
     if(!acct)return;
     const base=`火山 ${kind==='coding'?'Coding':'Agent'}${acct.label?' · '+acct.label:''}`;
-    const w=acct.error?null:bind(acct[kind]?.periods);
-    if(w){vTiles.push(tileHtml(href,base+` · ${wname[w.key]||''}`,`${w.pct.toFixed(1)}%`,pctColor(w.pct),footMeter(w.pct,pctColor(w.pct))));}
-    else if(acct.error){vTiles.push(tileHtml(href,base,'采集失败','var(--red)',`<div class="mfoot"><span class="msub">${esc(String(acct.error).slice(0,30))}</span></div>`));}
-    else if(acct[kind]?.periods){ // 新套餐已开但窗口 cap=0（用量未生成）：仍占位保 2×2 对齐
-      vTiles.push(tileHtml(href,base+' · 月','0.0%','var(--mut)','<div class="mfoot"><span class="msub">新套餐 · 用量未生成</span></div>'));
+    const ps=acct[kind]?.periods;
+    if(acct.error){vTiles.push(tileHtml(href,base,'采集失败','var(--red)',`<div class="mfoot"><span class="msub">${esc(String(acct.error).slice(0,30))}</span></div>`));return;}
+    if(Array.isArray(ps)){
+      const m=ps.find(p=>p.key==='monthly');const mp=(m&&m.cap>0)?m.pct:null;
+      const val=mp!=null?mp.toFixed(1)+'%':'—';
+      const col=mp!=null?pctColor(mp):'var(--mut)';
+      vTiles.push(tileHtml(href,base,val,col,v3Foot(ps)));
     }
   };
   const vTiles=[];
@@ -421,9 +431,9 @@ function renderMini(d){
     volcAcct(a2,'coding','vcard2');volcAcct(a2,'agent','vacard2');
   }else{
     if(d.volc&&d.volc.error)vTiles.push(tile('vcard','火山 Coding','采集失败','var(--red)',{text:String(d.volc.error).slice(0,42)}));
-    else{const wv=bind(d.volc?.periods);if(wv)vTiles.push(tile('vcard','火山 Coding · '+wname[wv.key],`${wv.pct.toFixed(1)}%`,pctColor(wv.pct),{meter:wv.pct}));}
+    else if(d.volc?.periods){const m=bind(d.volc.periods);vTiles.push(tileHtml('vcard','火山 Coding',m?m.pct.toFixed(1)+'%':'—',m?pctColor(m.pct):'var(--mut)',v3Foot(d.volc.periods)));}
     if(d.volcAgent&&d.volcAgent.error)vTiles.push(tile('vacard','火山 Agent','采集失败','var(--red)',{text:String(d.volcAgent.error).slice(0,42)}));
-    else{const wa=bind(d.volcAgent?.periods);if(wa)vTiles.push(tile('vacard','火山 Agent · '+wname[wa.key],`${wa.pct.toFixed(1)}%`,pctColor(wa.pct),{meter:wa.pct}));}
+    else if(d.volcAgent?.periods){const m=bind(d.volcAgent.periods);vTiles.push(tileHtml('vacard','火山 Agent',m?m.pct.toFixed(1)+'%':'—',m?pctColor(m.pct):'var(--mut)',v3Foot(d.volcAgent.periods)));}
   }
   const rest=[];
   const x=d.xf;
