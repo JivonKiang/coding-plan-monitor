@@ -127,6 +127,8 @@ main{max-width:920px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
 .card:target{border-color:var(--blue)}
 
 /* 首屏极简总览 */
+.mini .mini-volc{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;grid-column:1/-1}
+.mini .mini-rest{display:contents}
 .mini{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
 .mtile{display:block;padding:10px 12px 11px;border:1px solid var(--line);border-radius:12px;background:var(--card);text-decoration:none;color:var(--txt);transition:border-color .15s,transform .15s}
 .mtile:hover{border-color:var(--line-2);text-decoration:none;transform:translateY(-1px)}
@@ -136,6 +138,14 @@ main{max-width:920px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
 .mbar{flex:1;height:3px;border-radius:2px;background:var(--track);overflow:hidden}
 .mbar i{display:block;height:100%;border-radius:2px}
 .msub{font-size:10.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 千帆双资源瓦片：套餐+福利包各一行条 */
+.mfoot.qf{height:auto;display:block}
+.qfdual{display:flex;flex-direction:column;gap:3px;height:auto;margin-top:5px}
+.qfrow{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--mut)}
+.qfrow span:first-child{flex:0 0 38px}
+.qfrow b{flex:0 0 46px;text-align:right;font-family:var(--mono);font-weight:600;font-size:10px}
+.qfbar{flex:1;height:4px;border-radius:2px;background:var(--track);overflow:hidden}
+.qfbar i{display:block;height:100%;border-radius:2px}
 .card h2{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--mut);letter-spacing:.05em;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 .badge{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--mut);font-weight:500;letter-spacing:0}
 .badge.blue{color:var(--accent);border-color:var(--accent);opacity:.85}
@@ -384,39 +394,59 @@ const pend=(html)=>`<div class="pend">${html}</div>`;
 // 首屏极简总览：每块一个平台，点击锚点跳到下方详情卡
 function renderMini(d){
   const el=$('mini');if(!el)return;
-  const t=[],wname={session:'5h',weekly:'周',monthly:'月'};
+  const wname={session:'5h',weekly:'周',monthly:'月'};
   // 顶卡统一口径=月窗口（与分发链路/详单/决策原则一致；月窗是"已付费弹药"总量概念）。
   // 旧版取三窗口最高者导致 8942 顶卡显周窗 98.3% 而详单月窗 75.0%，同页两个数被主任判严重错误。
   const bind=ps=>{if(!Array.isArray(ps))return null;const m=ps.find(p=>p.key==='monthly'&&p.cap>0);if(m)return m;return ps.find(p=>p.cap>0)||null};
   const tile=(href,name,val,color,foot)=>`<a class="mtile" href="#${href}"><div class="mname">${esc(name)}</div><div class="mval" style="color:${color}">${val}</div><div class="mfoot">${foot.meter!=null?`<span class="mbar"><i style="width:${Math.min(100,foot.meter)}%;background:${color}"></i></span>`:`<span class="msub">${esc(foot.text||'')}</span>`}</div></a>`;
   const volcTile=(href,ps,base)=>{const w=bind(ps);if(!w)return;t.push(tile(href,`${base} · ${wname[w.key]||''}`,`${w.pct.toFixed(1)}%`,pctColor(w.pct),{meter:w.pct}))};
   // 保护①：账号采集失败显示红色失败卡，而不是静默消失
+  const tileHtml=(href,name,val,color,footHtml)=>`<a class="mtile" href="#${href}"><div class="mname">${esc(name)}</div><div class="mval" style="color:${color}">${val}</div>${footHtml}</a>`;
+  const footMeter=(pct,color)=>`<div class="mfoot"><span class="mbar"><i style="width:${Math.min(100,pct)}%;background:${color}"></i></span></div>`;
   const volcAcct=(acct,kind,href)=>{
     if(!acct)return;
     const base=`火山 ${kind==='coding'?'Coding':'Agent'}${acct.label?' · '+acct.label:''}`;
     const w=acct.error?null:bind(acct[kind]?.periods);
-    if(w)t.push(tile(href,base+` · ${wname[w.key]||''}`,`${w.pct.toFixed(1)}%`,pctColor(w.pct),{meter:w.pct}));
-    else if(acct.error)t.push(tile(href,base,'采集失败','var(--red)',{text:String(acct.error).slice(0,42)}));
+    if(w){vTiles.push(tileHtml(href,base+` · ${wname[w.key]||''}`,`${w.pct.toFixed(1)}%`,pctColor(w.pct),footMeter(w.pct,pctColor(w.pct))));}
+    else if(acct.error){vTiles.push(tileHtml(href,base,'采集失败','var(--red)',`<div class="mfoot"><span class="msub">${esc(String(acct.error).slice(0,30))}</span></div>`));}
+    else if(acct[kind]?.periods){ // 新套餐已开但窗口 cap=0（用量未生成）：仍占位保 2×2 对齐
+      vTiles.push(tileHtml(href,base+' · 月','0.0%','var(--mut)','<div class="mfoot"><span class="msub">新套餐 · 用量未生成</span></div>'));
+    }
   };
+  const vTiles=[];
   const accts=Array.isArray(d.volcAccounts)?d.volcAccounts:[];
   if(accts.length){
     const a1=accts[0]||{},a2=accts[1]||{};
     volcAcct(a1,'coding','vcard');volcAcct(a1,'agent','vacard');
     volcAcct(a2,'coding','vcard2');volcAcct(a2,'agent','vacard2');
   }else{
-    if(d.volc&&d.volc.error)t.push(tile('vcard','火山 Coding','采集失败','var(--red)',{text:String(d.volc.error).slice(0,42)}));
-    else volcTile('vcard',d.volc?.periods,'火山 Coding');
-    if(d.volcAgent&&d.volcAgent.error)t.push(tile('vacard','火山 Agent','采集失败','var(--red)',{text:String(d.volcAgent.error).slice(0,42)}));
-    else volcTile('vacard',d.volcAgent?.periods,'火山 Agent');
+    if(d.volc&&d.volc.error)vTiles.push(tile('vcard','火山 Coding','采集失败','var(--red)',{text:String(d.volc.error).slice(0,42)}));
+    else{const wv=bind(d.volc?.periods);if(wv)vTiles.push(tile('vcard','火山 Coding · '+wname[wv.key],`${wv.pct.toFixed(1)}%`,pctColor(wv.pct),{meter:wv.pct}));}
+    if(d.volcAgent&&d.volcAgent.error)vTiles.push(tile('vacard','火山 Agent','采集失败','var(--red)',{text:String(d.volcAgent.error).slice(0,42)}));
+    else{const wa=bind(d.volcAgent?.periods);if(wa)vTiles.push(tile('vacard','火山 Agent · '+wname[wa.key],`${wa.pct.toFixed(1)}%`,pctColor(wa.pct),{meter:wa.pct}));}
   }
+  const rest=[];
   const x=d.xf;
-  if(x&&!x.error)t.push(tile('xfcard','xf 中转',`$${(x.todayCost||0).toFixed(2)}`,'var(--orange)',{text:`今日 · 余额 $${(x.balance||0).toFixed(0)}`}));
+  if(x&&!x.error)rest.push(tile('xfcard','xf 中转',`$${(x.todayCost||0).toFixed(2)}`,'var(--orange)',{text:`今日 · 余额 $${(x.balance||0).toFixed(0)}`}));
   const q=d.qianfan;
-  if(q&&!q.error){const c=q.pct==null?'var(--mut)':q.pct<10?'var(--red)':q.pct<20?'var(--amber)':'var(--green)';
-    t.push(tile('qfcard',`千帆 ${(q.plan||'').toUpperCase()} · 余量`,`${q.pct!=null?q.pct.toFixed(1)+'%':'—'}`,c,{meter:q.pct||0}))}
+  if(q&&!q.error){
+    const c=q.pct==null?'var(--mut)':q.pct<10?'var(--red)':q.pct<20?'var(--amber)':'var(--green)';
+    const wf=q.welfare, wfPct=(wf&&wf.spec>0)?wf.remain/wf.spec*100:null;
+    const wc=wfPct==null?'var(--mut)':wfPct<10?'var(--red)':wfPct<20?'var(--amber)':'var(--green)';
+    const planTxt=q.pct!=null?q.pct.toFixed(1)+'%':'—';
+    const wfTxt=wfPct!=null?wfPct.toFixed(1)+'%':'—';
+    // 大数字=福利包余量（当前真正可用弹药）；脚下双条：套餐/福利包各一行（2026-10-29 主任令）
+    const foot=`<div class="mfoot qf"><div class="qfdual">
+      <div class="qfrow"><span>套餐</span><i class="qfbar"><i style="width:${Math.min(100,Math.max(0,q.pct||0))}%;background:${c}"></i></i><b style="color:${c}">${planTxt}</b></div>
+      <div class="qfrow"><span>福利包</span><i class="qfbar"><i style="width:${wfPct==null?0:Math.min(100,wfPct)}%;background:${wc}"></i></i><b style="color:${wc}">${wfTxt}</b></div>
+    </div></div>`;
+    rest.push(tileHtml('qfcard',`千帆 ${(q.plan||'').toUpperCase()} · 福利包余量`,wfTxt,wc,foot));
+  }
   const ds=d.deepseek;
-  if(ds&&!ds.error)t.push(tile('dscard','DeepSeek 官方',`¥${(ds.total||0).toFixed(2)}`,'var(--txt)',{text:'余额 · 按量'}));
-  el.innerHTML=t.join('')||'<a class="mtile" href="#sec-today"><div class="mname">额度数据缺失</div><div class="mval">—</div><div class="mfoot"><span class="msub">查看今日消耗</span></div></a>';
+  if(ds&&!ds.error)rest.push(tile('dscard','DeepSeek 官方',`¥${(ds.total||0).toFixed(2)}`,'var(--txt)',{text:'余额 · 按量'}));
+  const volcBlock=vTiles.length?`<div class="mini-volc">${vTiles.join('')}</div>`:'';
+  const restBlock=rest.length?`<div class="mini-rest">${rest.join('')}</div>`:'';
+  el.innerHTML=volcBlock+restBlock||'<a class="mtile" href="#sec-today"><div class="mname">额度数据缺失</div><div class="mval">—</div><div class="mfoot"><span class="msub">查看今日消耗</span></div></a>';
 }
 
 function renderDeepseek(ds){
