@@ -62,6 +62,64 @@ html[data-theme="dark"] .mp-logo svg{color:var(--accent)}
 @keyframes mp-tail-flick{0%,100%{transform:none}18%{transform:rotate(16deg)}36%{transform:rotate(-7deg)}54%{transform:rotate(9deg)}72%{transform:rotate(-3deg)}86%{transform:rotate(2deg)}}
 @keyframes mp-bird-bob{0%,100%{transform:none}18%{transform:rotate(-4deg)}40%{transform:rotate(2deg)}62%{transform:rotate(-1deg)}}
 @media (prefers-reduced-motion: reduce){.mp-logo.wag .mp-tail,.mp-logo.wag .mp-wing,.mp-logo.wag .mp-bird{animation:none}}
+
+/* ===== 分发链路 · 喜鹊飞线（浓缩自 magpie 的 Routes 页，MIT，yetone/magpie）===== */
+.rtwrap{position:relative;height:248px;margin-top:2px}
+#rtSvg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.rt-wire{fill:none;stroke:var(--line-2);stroke-width:1.6;stroke-linecap:round}
+.rt-wire.live{stroke:var(--accent);stroke-dasharray:7 6;animation:rt-dash .55s linear infinite}
+.rt-wire.live.bad{stroke:var(--red)}
+@keyframes rt-dash{to{stroke-dashoffset:-13}}
+.rtnode{position:absolute;display:flex;background:var(--card);border:1px solid var(--line);border-radius:11px;
+  padding:8px 12px;box-shadow:0 1px 3px rgba(0,0,0,.04);transition:border-color .25s,box-shadow .25s}
+.rtnode b{font-size:12.5px;font-weight:600;display:block;line-height:1.35;white-space:nowrap}
+.rtnode .rt-st{display:block;font-size:10.5px;color:var(--mut);font-family:var(--mono);font-variant-numeric:tabular-nums;line-height:1.4;white-space:nowrap}
+.rtnode .rt-tag,.rtnode .rt-tag2{flex:0 0 auto;font-size:9.5px;padding:1.5px 6px;border-radius:999px;font-weight:600}
+.rtnode .rt-tag{background:var(--accent-bg);color:var(--accent)}
+.rtnode .rt-tag2{background:var(--card2);color:var(--mut)}
+.rtnode.act{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-bg)}
+.rtnode.bad{border-color:var(--red);box-shadow:0 0 0 3px rgba(185,28,28,.12)}
+.rt-agent{left:0;top:50%;transform:translateY(-50%);flex-direction:column;align-items:flex-start;gap:2px;padding:10px 13px}
+.rt-agent .rt-st{font-family:var(--sans)}
+.rt-hubwrap{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:5px;z-index:2}
+.rt-hubbird{width:52px;height:52px;border-radius:50%;background:var(--card);border:1px solid var(--line-2);color:var(--ink);
+  display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.06);transition:border-color .25s,box-shadow .25s}
+.rt-hubbird svg{width:30px;height:30px;overflow:visible}
+.rt-hubbird.tick{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-bg)}
+.rt-hubbird .mp-parts{display:none}
+.rt-hubbird.flap .mp-whole{display:none}
+.rt-hubbird.flap .mp-parts{display:inline}
+.rt-hubbird .mp-tail{transform-box:view-box;transform-origin:14px 22px}
+.rt-hubbird .mp-wing{transform-box:view-box;transform-origin:30px 19.8px}
+.rt-hubbird .mp-bird{transform-box:view-box;transform-origin:26px 38px}
+.rt-hubbird.flap .mp-tail{animation:mp-tail-flick .9s cubic-bezier(.3,0,.3,1)}
+.rt-hubbird.flap .mp-wing{animation:mp-wing-flap .9s cubic-bezier(.3,0,.3,1)}
+.rt-hubbird.flap .mp-bird{animation:mp-bird-bob .9s cubic-bezier(.3,0,.3,1)}
+.rt-hublbl{font-size:10.5px;color:var(--mut);font-family:var(--mono);letter-spacing:.04em}
+.rt-prov{right:0;flex-direction:column;align-items:stretch;gap:2px;min-width:176px;max-width:236px}
+.rt-prov .rt-hd{display:flex;align-items:center;gap:6px;min-width:0}
+.rt-prov .rt-hd b{overflow:hidden;text-overflow:ellipsis}
+.rt-pkt{fill:var(--accent);stroke:var(--card);stroke-width:1.4}
+.rt-pkt.back{fill:var(--green)}
+.rt-pkt.err{fill:var(--red)}
+.rt-pkt.held{transform-box:fill-box;transform-origin:center;animation:rt-pulse 1s ease-in-out infinite}
+@keyframes rt-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.55)}}
+.rt-flier{pointer-events:none}
+.rt-flier .rt-body,.rt-flier .rt-tail{fill:var(--ink)}
+.rt-flier .rt-belly{fill:var(--card)}
+.rt-flier .rt-wf{fill:var(--ink);opacity:.5}
+.rt-flier .rt-wn path{fill:var(--ink)}
+.rt-flier .rt-bar{fill:none;stroke:var(--card);stroke-width:1.1}
+.rt-flier .rt-wn,.rt-flier .rt-wf{transform-box:fill-box;transform-origin:80% 90%;animation:rt-flap .42s ease-in-out infinite}
+.rt-flier .rt-wf{animation-direction:reverse}
+.rt-flier.away{opacity:0;transition:opacity .3s}
+@keyframes rt-flap{0%,100%{transform:rotate(0)}50%{transform:rotate(-40deg)}}
+@media (prefers-reduced-motion: reduce){
+  .rt-wire.live{animation:none;stroke-dasharray:none}
+  .rt-flier .rt-wn,.rt-flier .rt-wf{animation:none}
+  .rt-pkt.held{animation:none}
+  .rt-hubbird.flap .mp-tail,.rt-hubbird.flap .mp-wing,.rt-hubbird.flap .mp-bird{animation:none}
+}
 .dot-live{flex:0 0 7px;width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px rgba(14,90,80,.15)}
 html[data-theme="dark"] .dot-live{box-shadow:0 0 0 4px rgba(111,199,185,.15)}
 .spacer{flex:1}
@@ -213,6 +271,25 @@ footer{max-width:920px;margin:20px auto 0;font-size:11px;color:var(--dim);line-h
 <section class="t card" id="sec-today">
   <h2>今日消耗 <span class="badge" id="tdate">—</span></h2>
   <div id="tbody">加载中…</div>
+</section>
+
+<section class="t card" id="sec-route">
+  <h2>分发链路 <span class="badge" id="rtBadge">待命</span><span class="badge" id="rtReqBadge" style="display:none"></span></h2>
+  <div class="rtwrap" id="rtwrap">
+    <svg id="rtSvg" aria-hidden="true"></svg>
+    <div class="rtnode rt-agent" id="rtAgent"><b>Claude Bot</b><span class="rt-st" id="rtAgentSt">待接入采集</span></div>
+    <div class="rt-hubwrap" id="rtHub" style="left:50%;top:50%">
+      <div class="rt-hubbird" id="rtHubBird"></div>
+      <span class="rt-hublbl">monitor · 路由</span>
+    </div>
+    <div id="rtProv"></div>
+  </div>
+  <div class="legend">
+    <span><i style="background:var(--accent)"></i>请求在途（accent）</span>
+    <span><i style="background:var(--green)"></i>响应返回（green）</span>
+    <span><i style="background:var(--red)"></i>失败回撤</span>
+  </div>
+  <div class="note">浓缩自 magpie 的 Routes 页：一只喜鹊把请求从入口（Claude Bot）衔回路由枢纽，按规则送到当前选中的上游；上游应答后另一只喜鹊把响应带回来。上游节点 = 本页实时采集的五个额度源，状态每 2 分钟随采集刷新，飞行演示循环播放。</div>
 </section>
 
 <div class="grid" id="sec-platforms">
@@ -845,9 +922,227 @@ setInterval(()=>{document.querySelectorAll('.cd').forEach(el=>{const r=+el.datas
   window.mpWag=wag;
 })();
 
+// ===== 分发链路 · 喜鹊飞线（浓缩自 magpie 的 Routes 页，MIT，yetone/magpie）=====
+const RT=(function(){
+  const svg=$('rtSvg'),wrap=$('rtwrap');
+  if(!svg||!wrap)return{update(){},bump(){},fail(){}};
+  const NS='http://www.w3.org/2000/svg';
+  const HUB={x:.5,y:.5};
+  let provs=[]; // {id,label,st,ok,cls,el,anchor:{x,y}}
+  // 布局：几何在 resize 时按容器实测尺寸重算，保证窄屏/宽屏都成立
+  let geom={hub:{x:0,y:0},slots:[]};
+  const birdPath='M-13.5 -2.8C-15.8 -9 -13.4 -14.8 -7.2 -18.4C-8.2 -12.2 -8.3 -6.8 -7.7 -2.4Z'; // wing far
+  const FLIER=
+    '<g transform="scale(1.05)">'+
+    '<path class="rt-wf" d="M-14.5 -3.4C-16.5 -9.5 -14.2 -15 -8.6 -18.6C-9.4 -12.6 -9.6 -7.4 -9.2 -3.2Z"/>'+
+    '<path class="rt-tail" d="M-31.5 3.1L-18.6 -1.8L-17.4 1.2L-30.8 4.6Z"/>'+
+    '<ellipse class="rt-body" cx="-12.2" cy="-1.4" rx="7.6" ry="3.9"/>'+
+    '<ellipse class="rt-belly" cx="-12.8" cy="0.4" rx="4.3" ry="1.6"/>'+
+    '<circle class="rt-body" cx="-4.9" cy="-3.7" r="3.1"/>'+
+    '<path class="rt-body" d="M-2.3 -4.8L1.4 -3.3L-2.3 -2.2Z"/>'+
+    '<g class="rt-wn"><path d="M-15.6 -3.2C-17.8 -10.2 -15.2 -16.4 -8.4 -20.4C-9.3 -13.6 -9.4 -7.8 -8.8 -2.8Z"/>'+
+    '<path class="rt-bar" d="M-14.6 -5.6C-15.4 -10.4 -13.8 -14.4 -10.4 -17.2"/></g>'+
+    '</g>';
+  // 顶栏同款喜鹊（whole 静止 + parts 挥翅 状态机），在枢纽圆里当「路由器」
+  const hubBird=$('rtHubBird');
+  function ensureHubDefs(){
+    // 顶栏 logo IIFE 已在本模块前执行、注入了 <defs><path id="mp-bird">，克隆进来供 use 引用
+    if(!hubBird)return;
+    const logo=$('mpLogo');
+    const defs=logo&&logo.querySelector('defs');
+    if(defs&&!hubBird.querySelector('defs'))hubBird.appendChild(defs.cloneNode(true));
+    hubBird.insertAdjacentHTML('beforeend','<svg viewBox="0 0 44 44" aria-hidden="true"><use class="mp-whole" href="#mp-bird"/><g class="mp-parts"><use href="#mp-bird"/><g class="mp-tail"><use href="#mp-bird"/></g><g class="mp-wing"><use href="#mp-bird"/></g></g></svg>');
+  }
+  ensureHubDefs();
+  function layout(){
+    const w=wrap.clientWidth;
+    // 高度自适应：5 节点×52px 会重叠，按节点数撑高
+    const need=provs.length?provs.length*62+18:248;
+    if(wrap.clientHeight<need)wrap.style.height=need+'px';
+    else if(wrap.style.height)wrap.style.height='';
+    const h=wrap.clientHeight;
+    if(!w||!h)return;
+    geom.hub={x:w*HUB.x,y:h*HUB.y};
+    geom.slots=[];
+    for(let i=0;i<provs.length;i++){
+      geom.slots.push({x:w-2,y:Math.max(34,Math.min(h-20,(h/(provs.length+1))*(i+1)))});
+    }
+    drawWires();
+    positionNodes();
+  }
+  function drawWires(){
+    svg.innerHTML='';
+    const aEl=$('rtAgent');
+    const aR=aEl?{w:aEl.offsetWidth,h:aEl.offsetHeight}:{w:96,h:48};
+    const ax=aR.w+6, ay=geom.hub.y;
+    // 两段式：agent→hub（共享段）+ hub→provider（每上游一条），飞行时按 hub 拼接
+    const seg=document.createElementNS(NS,'path');
+    const mx=(ax+geom.hub.x)/2;
+    seg.setAttribute('d',`M${ax},${ay} C${mx},${ay} ${mx},${geom.hub.y} ${geom.hub.x},${geom.hub.y}`);
+    seg.setAttribute('class','rt-wire');
+    seg.dataset.seg='in';
+    svg.appendChild(seg);
+    for(const p of provs){
+      const path=document.createElementNS(NS,'path');
+      const mx2=(geom.hub.x+p.anchor.x)/2;
+      path.setAttribute('d',`M${geom.hub.x},${geom.hub.y} C${mx2},${geom.hub.y} ${mx2},${p.anchor.y} ${p.anchor.x},${p.anchor.y}`);
+      path.setAttribute('class','rt-wire');
+      path.dataset.prov=p.id;
+      svg.appendChild(path);
+    }
+  }
+  function positionNodes(){
+    for(let i=0;i<provs.length;i++){
+      const p=provs[i],s=geom.slots[i];
+      p.el.style.top=s.y+'px';
+      p.el.style.transform='translateY(-50%)';
+      p.el.style.right='0';
+      p.anchor={x:wrap.clientWidth-p.el.offsetWidth-2,y:s.y};
+    }
+  }
+  // 飞行：喜鹊 g 沿 wire path（getPointAtLength），到点后圆点被衔住脉冲；响应回程用反向路径
+  let gen=0;
+  async function fly(pathEl,birdG,rev,ms){
+    if(!pathEl)return;
+    const len=pathEl.getTotalLength();
+    const dur=Math.max(650,ms||900);
+    const t0=performance.now();
+    return new Promise(res=>{
+      function frame(t){
+        let k=Math.min(1,(t-t0)/dur);
+        const e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2; // easeInOutQuad
+        const d=(rev?1-e:e)*len;
+        const pt=pathEl.getPointAtLength(d);
+        birdG.setAttribute('transform',`translate(${pt.x},${pt.y})`);
+        if(birdG._onframe)birdG._onframe(pt);
+        if(k<1&&birdG.isConnected)requestAnimationFrame(frame);
+        else res();
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+  function mkBird(kind){
+    const g=document.createElementNS(NS,'g');
+    g.setAttribute('class','rt-flier '+(kind==='res'?'res':'req'));
+    g.innerHTML=FLIER;
+    svg.appendChild(g);
+    return g;
+  }
+  function mkPkt(){
+    const c=document.createElementNS(NS,'circle');
+    c.setAttribute('r','4.5');
+    c.setAttribute('class','rt-pkt');
+    svg.appendChild(c);
+    return c;
+  }
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  const reduced=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
+  async function loop(){
+    const myGen=++gen;
+    while(myGen===gen){
+      if(!provs.length){await sleep(1200);continue}
+      const tgt=provs.find(p=>p.ok)||provs[0];
+      const w1=svg.querySelector('path[data-seg="in"]');
+      const w2=svg.querySelector(`path[data-prov="${tgt.id}"]`);
+      const hubB=$('rtHubBird');
+      if(!w1||!w2||reduced()){await sleep(1800);continue}
+      provs.forEach(p=>p.el.classList.remove('act','bad'));
+      tgt.el.classList.add('act');
+      w2.classList.add('live');
+      hubB&&hubB.classList.add('flap');
+      setTimeout(()=>hubB&&hubB.classList.remove('flap'),950);
+      // 阶段一：agent→hub（请求在途）
+      const pkt=mkPkt();pkt.setAttribute('visibility','hidden');
+      const b1=mkBird('req');
+      // 圆点一直叼在喜鹊喙尖：飞行帧里直接按 path 上的点前移 14px 取喙位（SVG 坐标系一致）
+      const movePkt=(pt)=>{
+        pkt.setAttribute('cx',pt.x+14);pkt.setAttribute('cy',pt.y-3);
+        pkt.setAttribute('visibility','visible');
+      };
+      b1._onframe=movePkt;
+      await fly(w1,b1,false,850);
+      // 阶段二：hub→provider
+      await fly(w2,b1,false,950);
+      // 衔住：圆点留在上游节点脉冲
+      const ptEnd=w2.getPointAtLength(w2.getTotalLength());
+      b1.classList.add('away');setTimeout(()=>b1.remove(),350);
+      pkt.classList.add('held');
+      pkt.setAttribute('cx',ptEnd.x-10);pkt.setAttribute('cy',ptEnd.y);
+      await sleep(900);
+      // 阶段三：provider→hub→agent（响应回程，绿点）
+      pkt.classList.remove('held');pkt.classList.add('back');
+      const b2=mkBird('res');
+      b2._onframe=movePkt;
+      await fly(w2,b2,true,950);
+      await fly(w1,b2,true,850);
+      b2.classList.add('away');setTimeout(()=>b2.remove(),350);
+      pkt.remove();
+      w2.classList.remove('live');
+      tgt.el.classList.remove('act');
+      await sleep(1100);
+    }
+  }
+  loop();
+  window.addEventListener('resize',layout);
+  // ---- 数据接入：把本页实时额度渲染成上游节点 ----
+  function update(d){
+    if(!d)return;
+    const N=[];
+    const push=(id,label,st,ok,cls)=>N.push({id,label,st,ok,cls});
+    const accts=Array.isArray(d.volcAccounts)?d.volcAccounts:[];
+    const volc=accts[0]||(d.volc?{coding:d.volc.coding,agent:d.volc.agent}:{});
+    if(volc&&volc.coding&&volc.coding.periods&&!volc.error){
+      const m=volc.coding.periods.find(p=>p.key==='monthly');
+      push('v','火山 Coding',m?`${m.pct.toFixed(1)}% · 月窗`:'—',true,'');
+    } else if(volc&&volc.error)push('v','火山 Coding','采集失败',false,'bad');
+    else push('v','火山 Coding','待接入',false,'');
+    if(volc&&volc.agent&&volc.agent.periods&&!volc.error){
+      const m=volc.agent.periods.find(p=>p.key==='monthly');
+      push('va','火山 Agent',m?`${m.pct.toFixed(1)}% · 月窗`:'—',true,'');
+    }
+    if(d.xf&&!d.xf.error)push('x','xf 中转',`$${(d.xf.balance||0).toFixed(0)} · 按量`,true,'');
+    else if(d.xf&&d.xf.error)push('x','xf 中转','采集失败',false,'bad');
+    else push('x','xf 中转','待接入',false,'');
+    if(d.qianfan&&!d.qianfan.error)push('q','千帆 Token Plan',d.qianfan.pct!=null?`${d.qianfan.pct.toFixed(1)}% · 余量`:'—',true,'');
+    else if(d.qianfan&&d.qianfan.error)push('q','千帆 Token Plan','采集失败',false,'bad');
+    else push('q','千帆 Token Plan','待接入',false,'');
+    if(d.deepseek&&!d.deepseek.error)push('d','DeepSeek',`¥${(d.deepseek.total||0).toFixed(0)} · 按量`,true,'');
+    else if(d.deepseek&&d.deepseek.error)push('d','DeepSeek','采集失败',false,'bad');
+    else push('d','DeepSeek','待接入',false,'');
+    provs=N.map(n=>{
+      let el=document.querySelector(`.rtnode[data-prov="${n.id}"]`);
+      if(!el){
+        el=document.createElement('div');
+        el.className='rtnode rt-prov';
+        el.dataset.prov=n.id;
+        $('rtProv').appendChild(el);
+      }
+      el.innerHTML=`<div class="rt-hd"><b>${esc(n.label)}</b>${n.ok?'<span class="rt-tag">在线</span>':'<span class="rt-tag2">离线</span>'}</div><span class="rt-st">${esc(n.st)}</span>`;
+      el.classList.toggle('bad',n.cls==='bad');
+      return{...n,el,anchor:{x:0,y:0}};
+    });
+    // agent 节点状态：今日 xf tokens + 火山 5h 窗口
+    const x=d.xf,vS=d.volc&&d.volc.periods?d.volc.periods.find(p=>p.key==='session'):null;
+    const a=$('rtAgentSt');
+    if(a)a.textContent=`今日 ${(d.xf&&!d.xf.error?fmt(d.xf.todayTokens):'—')} tk · 5h ${vS&&!d.volc.error?vS.pct.toFixed(0)+'%':'—'}`;
+    layout();
+  }
+  function bump(){ // 数据刷新成功：枢纽挥翅 + 徽标
+    const hubB=$('rtHubBird');hubB&&hubB.classList.add('flap');
+    setTimeout(()=>hubB&&hubB.classList.remove('flap'),950);
+    const bd=$('rtBadge');bd.textContent='在途';bd.style.color='var(--green)';bd.style.borderColor='var(--green)';
+    setTimeout(()=>{bd.textContent='待命';bd.style.color='';bd.style.borderColor=''},4000);
+  }
+  function fail(){
+    const bd=$('rtBadge');bd.textContent='采集失败';bd.style.color='var(--red)';bd.style.borderColor='var(--red)';
+  }
+  setTimeout(layout,50);
+  return{update,bump,fail};
+})();
+
 // 自动/手动刷新
 const REFRESH_MS=2*60*1000;
-let nextAt=0,loading=false;
+let nextAt=0,loading=false,lastData=null;
 async function load(){
   if(loading)return;
   loading=true;
@@ -856,11 +1151,15 @@ async function load(){
   try{
     const r=await fetch('data.json?t='+Date.now());
     if(!r.ok)throw new Error('HTTP '+r.status);
-    render(await r.json());
-    nextAt=Date.now()+REFRESH_MS;
+    lastData=await r.json();
+    render(lastData);
+    RT.update(lastData);
+    if(window.mpWag)window.mpWag();
+    RT.bump();
     if(window.mpWag)window.mpWag();
   }catch(e){
     $('upd').textContent='加载失败：'+e.message;$('upd').classList.add('stale');
+    RT.fail();
     nextAt=Date.now()+60e3; // 失败 1 分钟后重试
   }finally{
     loading=false;btn.disabled=false;btn.textContent='⟳ 刷新';
