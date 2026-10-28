@@ -99,6 +99,10 @@ html[data-theme="dark"] .mp-logo svg{color:var(--accent)}
 .rt-prov{right:0;flex-direction:column;align-items:stretch;gap:2px;min-width:176px;max-width:236px}
 .rt-prov .rt-hd{display:flex;align-items:center;gap:6px;min-width:0}
 .rt-prov .rt-hd b{overflow:hidden;text-overflow:ellipsis}
+/* 窄屏竖向流式：入口居中置顶 → 枢纽 → 上游自上而下（JS 按 wrap.classList 切换） */
+.rtwrap.narrow .rt-agent{left:50%;top:0;transform:translateX(-50%)}
+.rtwrap.narrow .rt-prov{min-width:0;max-width:none}
+.rtwrap.narrow .rt-prov .rt-hd b{flex:1 1 auto;min-width:0}
 .rt-pkt{fill:var(--accent);stroke:var(--card);stroke-width:1.4}
 .rt-pkt.back{fill:var(--green)}
 .rt-pkt.err{fill:var(--red)}
@@ -278,7 +282,7 @@ footer{max-width:920px;margin:20px auto 0;font-size:11px;color:var(--dim);line-h
   <div class="rtwrap" id="rtwrap">
     <svg id="rtSvg" aria-hidden="true"></svg>
     <div class="rtnode rt-agent" id="rtAgent"><b>Claude Bot</b><span class="rt-st" id="rtAgentSt">待接入采集</span></div>
-    <div class="rt-hubwrap" id="rtHub" style="left:50%;top:50%">
+    <div class="rt-hubwrap" id="rtHub">
       <div class="rt-hubbird" id="rtHubBird"></div>
       <span class="rt-hublbl">monitor · 路由</span>
     </div>
@@ -927,7 +931,7 @@ const RT=(function(){
   const svg=$('rtSvg'),wrap=$('rtwrap');
   if(!svg||!wrap)return{update(){},bump(){},fail(){}};
   const NS='http://www.w3.org/2000/svg';
-  const HUB={x:.5,y:.5};
+  const HUB={x:.5,y:.5}; // 宽屏枢纽占位；窄屏 hub.y 在 layout() 里按入口节点实高算
   let provs=[]; // {id,label,st,ok,cls,el,anchor:{x,y}}
   // 布局：几何在 resize 时按容器实测尺寸重算，保证窄屏/宽屏都成立
   let geom={hub:{x:0,y:0},slots:[]};
@@ -956,23 +960,86 @@ const RT=(function(){
   ensureHubDefs();
   function layout(){
     const w=wrap.clientWidth;
-    // 高度自适应：5 节点×52px 会重叠，按节点数撑高
+    if(!w)return;
+    const narrow=w<560; // 窄屏：竖向流式（入口置顶→枢纽→上游）；宽屏：左→中→右
+    wrap.classList.toggle('narrow',narrow);
+    // 宽屏高度自适应：节点多时撑高防重叠；窄屏高度由内容撑出
     const need=provs.length?provs.length*62+18:248;
-    if(wrap.clientHeight<need)wrap.style.height=need+'px';
-    else if(wrap.style.height)wrap.style.height='';
-    const h=wrap.clientHeight;
-    if(!w||!h)return;
-    geom.hub={x:w*HUB.x,y:h*HUB.y};
-    geom.slots=[];
-    for(let i=0;i<provs.length;i++){
-      geom.slots.push({x:w-2,y:Math.max(34,Math.min(h-20,(h/(provs.length+1))*(i+1)))});
+    if(!narrow){
+      if(wrap.clientHeight<need)wrap.style.height=need+'px';
+      else if(wrap.style.height)wrap.style.height='';
+    }else if(wrap.style.height)wrap.style.height='';
+    let h=wrap.clientHeight;
+    const hubEl=$('rtHub'),aEl0=$('rtAgent');
+    // 窄屏：入口置顶居中 → 枢纽在其下 → 上游全宽纵排；hub.y 由入口实高决定
+    if(narrow){
+      if(aEl0){
+        aEl0.style.left='50%';aEl0.style.top='0';aEl0.style.transform='translateX(-50%)';
+        aEl0.style.right='auto';aEl0.style.width='';
+      }
+      if(hubEl){
+        const hubY=(aEl0?aEl0.offsetHeight:48)+46;
+        geom.hub={x:w*.5,y:hubY};
+        hubEl.style.left='50%';hubEl.style.top=hubY+'px';
+      }
+      let y=geom.hub.y+46;
+      for(const p of provs){
+        p.el.style.top=y+'px';p.el.style.transform='none';
+        p.el.style.left='4px';p.el.style.right='4px';p.el.style.width='calc(100% - 8px)';
+        p.anchor={x:14,y:y+p.el.offsetHeight/2};
+        y+=p.el.offsetHeight+10;
+      }
+      const last=provs.length?provs[provs.length-1].el:null;
+      const bottom=last?last.offsetTop+last.offsetHeight+18:geom.hub.y+120;
+      if(Math.round(h)!==Math.round(bottom))wrap.style.height=bottom+'px';
+    }else{
+      // 宽屏：右侧纵向槽位，左侧入口垂直居中，枢纽正中
+      if(wrap.style.height)wrap.style.height='';
+      h=wrap.clientHeight;
+      // 从窄屏切回时高度回到 CSS 默认 248，可能容不下全部节点：再补一次自适应
+      const needW=provs.length?provs.length*62+18:248;
+      if(h<needW){wrap.style.height=needW+'px';h=needW}
+      geom.hub={x:w*HUB.x,y:h*HUB.y};
+      for(let i=0;i<provs.length;i++){
+        const p=provs[i];
+        const y=Math.max(34,Math.min(h-20,(h/(provs.length+1))*(i+1)));
+        p.el.style.top=y+'px';p.el.style.transform='translateY(-50%)';
+        p.el.style.right='0';p.el.style.left='auto';p.el.style.width='';
+        p.anchor={x:wrap.clientWidth-p.el.offsetWidth-2,y:y};
+      }
+      if(aEl0){aEl0.style.left='0';aEl0.style.top='50%';aEl0.style.transform='translateY(-50%)';aEl0.style.right='auto';aEl0.style.width=''}
+      if(hubEl){hubEl.style.left=(geom.hub.x/w*100)+'%';hubEl.style.top=geom.hub.y+'px'}
     }
     drawWires();
-    positionNodes();
   }
   function drawWires(){
     svg.innerHTML='';
     const aEl=$('rtAgent');
+    if(wrap.classList.contains('narrow')){
+      // 竖向：入口(顶)↓枢纽 + 枢纽↔各上游（锚在节点左缘中点），短竖曲线
+      const ay=aEl?aEl.offsetTop+aEl.offsetHeight+6:64;
+      const axm=geom.hub.x;
+      const seg=document.createElementNS(NS,'path');
+      const my=(ay+geom.hub.y)/2;
+      seg.setAttribute('d',`M${axm-6},${ay} C${axm-6},${my} ${axm-9},${my} ${geom.hub.x-8},${geom.hub.y-22}`);
+      seg.setAttribute('class','rt-wire');
+      seg.dataset.seg='in';
+      svg.appendChild(seg);
+      for(const p of provs){
+        const path=document.createElementNS(NS,'path');
+        const my2=(geom.hub.y+p.anchor.y)/2;
+        const dx=p.anchor.x-geom.hub.x, dy=p.anchor.y-geom.hub.y;
+        const ang=Math.atan2(dy,Math.abs(dx)+1e-6);
+        const ex=geom.hub.x+Math.cos(ang)*30, ey=geom.hub.y+Math.sin(ang)*30; // 枢纽圆缘(半径30)出发
+        path.setAttribute('d',`M${ex.toFixed(1)},${ey.toFixed(1)} C${ex.toFixed(1)},${my2} ${p.anchor.x-8},${my2} ${p.anchor.x},${p.anchor.y.toFixed(1)}`);
+        path.setAttribute('class','rt-wire');
+        path.dataset.prov=p.id;
+        svg.appendChild(path);
+      }
+      svg.classList.add('rt-vert');
+      return;
+    }
+    svg.classList.remove('rt-vert');
     const aR=aEl?{w:aEl.offsetWidth,h:aEl.offsetHeight}:{w:96,h:48};
     const ax=aR.w+6, ay=geom.hub.y;
     // 两段式：agent→hub（共享段）+ hub→provider（每上游一条），飞行时按 hub 拼接
@@ -991,15 +1058,7 @@ const RT=(function(){
       svg.appendChild(path);
     }
   }
-  function positionNodes(){
-    for(let i=0;i<provs.length;i++){
-      const p=provs[i],s=geom.slots[i];
-      p.el.style.top=s.y+'px';
-      p.el.style.transform='translateY(-50%)';
-      p.el.style.right='0';
-      p.anchor={x:wrap.clientWidth-p.el.offsetWidth-2,y:s.y};
-    }
-  }
+  function positionNodes(){ /* 布局已并入 layout()（宽/窄两种模式都在那里摆节点） */ }
   // 飞行：喜鹊 g 沿 wire path（getPointAtLength），到点后圆点被衔住脉冲；响应回程用反向路径
   let gen=0;
   async function fly(pathEl,birdG,rev,ms){
@@ -1013,8 +1072,12 @@ const RT=(function(){
         const e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2; // easeInOutQuad
         const d=(rev?1-e:e)*len;
         const pt=pathEl.getPointAtLength(d);
-        birdG.setAttribute('transform',`translate(${pt.x},${pt.y})`);
-        if(birdG._onframe)birdG._onframe(pt);
+        // 朝向=行进方向切线（俯冲/爬升/倒飞都自然）；喜鹊喙朝 +x
+        const d2=Math.max(0,Math.min(len,d+(rev?-3:3)));
+        const pt2=pathEl.getPointAtLength(d2);
+        const ang=Math.atan2(pt2.y-pt.y,pt2.x-pt.x)*180/Math.PI;
+        birdG.setAttribute('transform',`translate(${pt.x},${pt.y}) rotate(${ang})`);
+        if(birdG._onframe)birdG._onframe(pt,ang);
         if(k<1&&birdG.isConnected)requestAnimationFrame(frame);
         else res();
       }
@@ -1054,9 +1117,11 @@ const RT=(function(){
       // 阶段一：agent→hub（请求在途）
       const pkt=mkPkt();pkt.setAttribute('visibility','hidden');
       const b1=mkBird('req');
-      // 圆点一直叼在喜鹊喙尖：飞行帧里直接按 path 上的点前移 14px 取喙位（SVG 坐标系一致）
-      const movePkt=(pt)=>{
-        pkt.setAttribute('cx',pt.x+14);pkt.setAttribute('cy',pt.y-3);
+      // 圆点叼在喜鹊喙尖：飞行帧给出切线角 ang，喙位=沿行进方向前移 13px（旋转后坐标系一致）
+      const movePkt=(pt,ang)=>{
+        const r=(ang||0)*Math.PI/180;
+        pkt.setAttribute('cx',pt.x+Math.cos(r)*13);
+        pkt.setAttribute('cy',pt.y+Math.sin(r)*13-2);
         pkt.setAttribute('visibility','visible');
       };
       b1._onframe=movePkt;
