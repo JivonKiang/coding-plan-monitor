@@ -306,6 +306,7 @@ footer{max-width:920px;margin:20px auto 0;font-size:11px;color:var(--dim);line-h
   <div class="card" id="dscard"><h2>DeepSeek 官方 <span class="badge red">按量</span></h2><div id="dsbody">加载中…</div></div>
   <div class="card" id="xfcard"><h2>xf 中转站 <span class="badge purple">按量</span></h2><div id="xfbody">加载中…</div></div>
   <div class="card" id="qfcard"><h2>千帆 Token Plan <span class="badge blue" id="qfplan">—</span></h2><div id="qfbody">加载中…</div></div>
+  <div class="card" id="magcard"><h2>Magpie 网关 <span class="badge blue">订阅组路由</span></h2><div id="magbody">加载中…</div></div>
 </div>
 
 <section class="t card verdict" id="sec-verdict">
@@ -464,14 +465,45 @@ function renderQianfan(q){
   const remColor=v=>v==null?'var(--mut)':v<10?'var(--red)':v<20?'var(--amber)':'var(--green)';
   const dt=s=>s?new Date(s).toLocaleDateString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit'}):'—';
   const days=q.expiresAt?Math.max(0,Math.ceil((new Date(q.expiresAt).getTime()-Date.now())/86400e3)):null;
+  const wf=q.welfare,wfPct=(wf&&wf.spec>0)?(wf.remain/wf.spec*100):null;
+  const wfHtml=wf?`<div class="row"><div class="top"><b>福利包（独立资源 · 不结转）</b><span class="pct" style="color:${remColor(wfPct)}">${wfPct!=null?wfPct.toFixed(1)+'%':'—'}</span></div>
+  <div class="bar"><i style="width:${wfPct==null?0:Math.min(100,wfPct)}%;background:${remColor(wfPct)}"></i></div>
+  <div class="meta">已用 ${fmt(wf.used)} / ${fmt(wf.spec)} 积分 · 剩 ${fmt(wf.remain)} · 到期 ${dt(wf.endTime)}${wf.endTime?` · 剩 ${Math.max(0,Math.ceil((new Date(wf.endTime).getTime()-Date.now())/86400e3))} 天`:''}</div></div>`:'';
   bd.textContent=(q.plan||'—').toUpperCase()+(q.autoRenew?' 自动续费':'');
   el.innerHTML=`<div class="big">${fmt(q.remain)}<small style="font-size:12px;color:var(--mut);font-weight:500"> 积分剩余</small></div>
   <div class="sub">已用 ${fmt(q.used)} / 总量 ${fmt(q.total)} 积分 · ${esc(q.status||'—')}</div>
   <div class="row"><div class="top"><b>套餐余量</b><span class="pct" style="color:${remColor(p)}">${p!=null?p.toFixed(2)+'%':'—'}</span></div>
   <div class="bar"><i style="width:${p==null?0:Math.min(100,p)}%;background:${remColor(p)}"></i></div>
   <div class="meta">生效 ${dt(q.effectiveAt)} · 到期 ${dt(q.expiresAt)}${days!=null?` · 剩 ${days} 天`:''}</div></div>
+  ${wfHtml}
   <div class="row"><div class="top"><b>速率限制</b><span class="pct" style="color:var(--amber)">个人版 · 不可并行</span></div>
   <div class="meta">与智谱同：个人版有速率上限，多路并行会排队等待，无法当企业级并发池用。Agent 批量并行任务建议串行化，或把重活溢出到 xf 中转站 / DeepSeek 官方（按量、无限速）。</div></div>`;
+}
+
+function renderMagpie(m,h){
+  const el=$('magbody');
+  if(m==null&&h==null){el.innerHTML=pend('待采集：下轮 2 分钟采集后显示 magpie 配置结构与路由健康。');return}
+  let html='';
+  // 配置结构（订阅组接管序 + 各上游回退环；不含密钥）
+  if(m&&!m.error){
+    const g=((m.groups||[]).find(x=>x.id==='subscription'))||(m.groups||[])[0];
+    if(g) html+=`<div class="row"><div class="top"><b>订阅组 ${esc(g.name||g.id)} · 会话粘性（affinity=${esc(g.affinity||'session')}）</b><span class="pct">${(g.members||[]).length} 成员按序接管</span></div>
+    <div class="meta">${(g.members||[]).map((x,i)=>`<b style="color:${i===0?'var(--green)':'var(--mut)'}">${i+1}. ${esc(x)}</b>`).join(' → ')}</div>
+    <div class="meta">同一会话粘住同一上游（保提示缓存）；首位 429/故障时按序切下一位，全部失败才向调用方报错。</div></div>`;
+    const rows=(m.providers||[]).map(p=>`<tr><td>${esc(p.name)}</td><td style="color:var(--mut)">${esc(p.host)}</td><td style="color:var(--mut)">${p.fallback&&p.fallback.length?esc(p.fallback.join(' → ')):'—'}</td></tr>`).join('');
+    if(rows) html+=`<table><tr><th>上游</th><th>接口主机</th><th>回退链（首位失败依次切）</th></tr>${rows}</table>`;
+  } else if(m&&m.error){ html+=`<div class="meta">配置结构采集失败：${esc(m.error)}</div>`; }
+  // 路由健康（近 2h 订阅组各成员状态）
+  if(h&&!h.error){
+    const stc=s=>s==='up'?'<span style="color:var(--green)">正常</span>':s==='rate'?'<span style="color:var(--amber)">限频冷却</span>':'<span style="color:var(--red)">配额耗尽</span>';
+    const mem=(h.members||[]).map(x=>{
+      const until=x.until?`（${new Date(x.until).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})} 重置）`:'';
+      return `<div class="krow"><span>${esc(x.name||x.id)}${until}</span><b>${stc(x.state)} · 近2h ${x.req2h||0} 次</b></div>`;
+    }).join('');
+    html+=`<div class="row"><div class="top"><b>近 2h 路由健康</b><span class="pct" style="color:${h.available===h.total?'var(--green)':(h.available>0?'var(--amber)':'var(--red)')}">可用 ${h.available}/${h.total}</span></div>${mem}
+    <div class="meta">共 ${h.req2h||0} 次请求 · 最终失败 ${h.finalFail2h||0} 次${h.finalFail2h>0?'（触发邮件告警，1h 去重）':''}</div></div>`;
+  } else if(h&&h.error){ html+=`<div class="meta">路由健康采集失败：${esc(h.error)}</div>`; }
+  el.innerHTML=html||pend('暂无数据');
 }
 
 function renderIntel(it){
@@ -854,6 +886,7 @@ function render(d){
   renderDeepseek(d.deepseek);
   renderXf(d.xf);
   renderQianfan(d.qianfan);
+  renderMagpie(d.magpieConfig,d.magpieHealth);
   renderIntel(d.intel);
   // 今日（双口径：火山主力=5小时窗口用量估算；xf=中转实测；智谱已退订）
   const x=d.xf, xrate=(x&&x.cnyPerUsd)||0.1479; // v 已在函数开头声明（d.volc）

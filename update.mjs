@@ -1,9 +1,10 @@
 // Coding Plan 额度采集 → data.json → git push（GitHub Pages 数据源）
 // 用法：node update.mjs [--no-push]  默认采集并推送；--no-push 仅本地更新
-import { readFileSync, writeFileSync, existsSync, unlinkSync, renameSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, unlinkSync, renameSync, openSync, readSync, closeSync, statSync } from 'fs';
 import { spawn, spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { homedir } from 'os';
 import { collectIntel } from './intel.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -130,7 +131,7 @@ function mapPeriods(item, caps) {
   });
 }
 
-function fetchVolcOne(profile) {
+function fetchVolcOne(profile, home) {
   const edition = cfg.volcEdition === 'Lite' ? 'Lite' : 'Pro';
   const args = ['usage', 'plan', '--all', '--format', 'json'];
   if (profile) args.push('--profile', profile);
@@ -139,7 +140,8 @@ function fetchVolcOne(profile) {
   for (let i = 0; i < 3 && !j; i++) {
     if (i) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2000);
     // --all：一次拿全 4 个 SKU（personal 的 Coding Plan + Agent Plan，team 席位无绑定时返回 error 可忽略）
-    const p = spawnSync('arkcli', args, { shell: true, encoding: 'utf8' });
+    // home：独立 USERPROFILE 状态目录（arkcli 单身份互斥，双账号各占一个目录，如 C:\Users\admin\.arkcli-8942）
+    const p = spawnSync('arkcli', args, { shell: true, encoding: 'utf8', ...(home ? { env: { ...process.env, USERPROFILE: home } } : {}) });
     const so = p.stdout || '';
     try { j = JSON.parse(so.slice(so.indexOf('{'))); }
     catch { lastErr = 'stdout=' + so.slice(0, 200) + ' stderr=' + (p.stderr || '').slice(0, 200); }
@@ -163,14 +165,15 @@ function fetchVolcOne(profile) {
   };
 }
 
-// 多账号：config.volcProfiles = [{label, profile}]，每个账号独立登录态（arkcli --profile）
+// 多账号：config.volcProfiles = [{label, profile, home?}]，每个账号独立登录态（arkcli --profile）；
+// arkcli 为单身份互斥（后登录者清掉先登录者 identity），双账号需各占独立状态目录（home 指向，如 C:\Users\admin\.arkcli-8942）
 function fetchVolc() {
   const list = Array.isArray(cfg.volcProfiles) && cfg.volcProfiles.length
     ? cfg.volcProfiles
     : [{ label: '', profile: '' }];
-  const accounts = list.map(({ label = '', profile = '' }) => {
+  const accounts = list.map(({ label = '', profile = '', home = '' }) => {
     try {
-      const r = fetchVolcOne(profile);
+      const r = fetchVolcOne(profile, home);
       return { label, profile, user: r.user, coding: r.coding, agent: r.agent };
     } catch (e) {
       return { label, profile, user: '', coding: null, agent: null, error: String(e?.message || e) };
@@ -377,6 +380,29 @@ async function qfReadBalance() {
   } finally { cdp.close(); }
 }
 
+// 读取福利包余额：/resource/token 页的独立接口（与套餐 tokenPlanPersonal 分离），白名单字段不带 resourceId/apiKey
+async function qfReadWelfare() {
+  const tab = await qfEnsurePage();
+  if (!tab?.webSocketDebuggerUrl) throw new Error('专用浏览器无可用标签页');
+  const cdp = await qfCdp(tab.webSocketDebuggerUrl);
+  try {
+    return await cdp.evaluate(`(async () => {
+      try {
+        const res = await fetch('/api/qianfan/charge/tokenPlan/resourceList?pageNo=1&pageSize=100&orderBy=startTime&order=ASC', { credentials: 'include', headers: { Accept: 'application/json' } });
+        const txt = await res.text();
+        if (!txt || txt.trim().startsWith('<')) return { login: true, status: res.status };
+        const j = JSON.parse(txt);
+        const it = (j.result && j.result.items && j.result.items[0]) || null;
+        if (!it) return { empty: true, status: res.status };
+        return {
+          status: res.status, spec: Number(it.spec) || 0, used: Number(it.used) || 0,
+          startTime: it.startTime || null, endTime: it.endTime || null,
+        };
+      } catch { return { netError: true }; }
+    })()`);
+  } finally { cdp.close(); }
+}
+
 // 登录态失效时自动走「快捷登录」（profile 内已缓存账号，无需短信/扫码）
 async function qfQuickLogin() {
   const tab = await qfEnsurePage();
@@ -411,13 +437,25 @@ async function fetchQianfan() {
     };
   };
   const r1 = await qfReadBalance();
-  if (r1?.totalCredits != null) return shape(r1);
-  if (r1?.login || r1?.netError) {
+  let base = null;
+  if (r1?.totalCredits != null) base = shape(r1);
+  if (!base && (r1?.login || r1?.netError)) {
     await qfQuickLogin();
     const r2 = await qfReadBalance();
-    if (r2?.totalCredits != null) return shape(r2);
+    if (r2?.totalCredits != null) base = shape(r2);
   }
-  throw new Error(QF_ERROR);
+  if (!base) throw new Error(QF_ERROR);
+  // 福利包（独立资源独立 key，采集失败不阻塞套餐主数据）
+  try {
+    const w = await qfReadWelfare();
+    if (w?.spec > 0) {
+      base.welfare = {
+        spec: w.spec, used: w.used, remain: +(w.spec - w.used).toFixed(2),
+        startTime: w.startTime, endTime: w.endTime,
+      };
+    }
+  } catch { /* 福利包失败不影响主数据 */ }
+  return base;
 }
 
 // ---------- 每日财务提示（当天生成一次，当天冻结，避免 2 分钟采集抖动）----------
@@ -448,11 +486,27 @@ function buildAdvice({ accounts, xf, qianfan, daily, today }) {
     const perDay = qianfan.used / elapsed;
     if (perDay > 0) {
       const daysLeft = qianfan.remain / perDay;
-      const line = `已用 ${Math.round(qianfan.pct)}%（${Math.round(qianfan.used).toLocaleString()}/${qianfan.total.toLocaleString()}）· ${elapsed.toFixed(1)} 天均 ${Math.round(perDay).toLocaleString()}/天 · 约 ${Math.ceil(daysLeft)} 天后耗尽`;
+      // pct 字段=余量占比（(total-used)/total），"已用"必须用 used/total 另算——
+      // 2026-10-28 主任质询后修正：旧文案 Math.round(qianfan.pct) 在透支时显示"已用 0%"
+      const usedPct = Math.round(qianfan.used / qianfan.total * 100);
+      const line = `已用 ${usedPct}%（${Math.round(qianfan.used).toLocaleString()}/${qianfan.total.toLocaleString()}）· ${elapsed.toFixed(1)} 天均 ${Math.round(perDay).toLocaleString()}/天 · ${qianfan.remain <= 0 ? '已透支（超出 ' + Math.abs(Math.round(qianfan.remain)).toLocaleString() + ' 积分）' : '约 ' + Math.ceil(daysLeft) + ' 天后耗尽'}`;
       if (daysLeft < 3) push('red', '千帆 Pro 即将耗尽：收强度或申请加购', line + '。加购/升级属花钱动作，需主任批准后再动。');
       else if (daysLeft < 7) push('amber', '千帆 Pro 用量偏快', line + '。检索/文档类优先压到 xf 低价模型。');
       else push('blue', '千帆 Pro 节奏正常', line + '。');
     }
+  }
+
+  // ②b 千帆福利包（独立资源，1 个月有效不结转）：按速率外推到期烧得完吗
+  const wf = qianfan?.welfare;
+  if (wf && wf.spec > 0 && wf.startTime) {
+    const elapsedDays = Math.max((Date.now() - new Date(wf.startTime).getTime()) / 864e5, 0.5);
+    const perDay = wf.used / elapsedDays;
+    const daysLeft = wf.endTime ? Math.ceil((new Date(wf.endTime).getTime() - Date.now()) / 864e5) : null;
+    const remain = wf.spec - wf.used;
+    const line = `已用 ${Math.round(wf.used).toLocaleString()}/${wf.spec.toLocaleString()} 积分 · 均 ${Math.round(perDay).toLocaleString()}/天${daysLeft != null ? ` · 剩 ${daysLeft} 天到期` : ''}`;
+    if (daysLeft != null && daysLeft <= 3 && remain > wf.spec * 0.1) push('red', '千帆福利包即将过期（不结转）', line + ` · 还剩 ${Math.round(remain).toLocaleString()} 积分会作废，加紧把批读/检索类任务路由到 baidu-qianfan-2/glm-5.3-flash。`);
+    else if (daysLeft != null && perDay > 0 && perDay * daysLeft < remain * 0.9) push('amber', '千帆福利包按当前速率会烧不完', line + ` · 按此速率到期约剩 ${Math.round(remain - perDay * daysLeft).toLocaleString()} 积分作废，多派批读类任务。`);
+    else push('blue', '千帆福利包节奏正常', line + '。');
   }
 
   // ③ 火山各账号已满窗口汇总（满额后继续硬顶只会限流重试）
@@ -493,6 +547,112 @@ function buildAdvice({ accounts, xf, qianfan, daily, today }) {
   return { date: today, generatedAt: Date.now(), items };
 }
 
+// ---------- magpie 路由健康（订阅组限频/中断监测，2026-10-28 主任令）----------
+// 数据源：~/.config/magpie/routing/YYYY-MM-DD.jsonl（每行一次外部请求，tries 为逐上游尝试）
+// 监测：①各上游当前 rest（rate=瞬时限频冷却 / quota=配额耗尽）②近窗最终失败=用户任务中断信号
+//       ③tries.fail='rate' 次数 ④10 分钟分桶趋势。最终失败走 wb_notify 队列告警（1h 去重）。
+function collectMagpieHealth() {
+  const dir = join(homedir(), '.config', 'magpie', 'routing');
+  const now = Date.now();
+  const WIN_MS = 2 * 3600 * 1000;
+  const dayNames = [];
+  for (let k = 0; k < 2; k++) {
+    const d = new Date(now - k * 86400000);
+    dayNames.push(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.jsonl`);
+  }
+  // tail 读：单文件上万行，每轮全读浪费；取末尾 ~4MB 覆盖近 2h 足够（监测的是"此刻是否在撞限频"）
+  const tailLines = (name) => {
+    const p = join(dir, name);
+    if (!existsSync(p)) return [];
+    const sz = statSync(p).size;
+    const buf = Buffer.alloc(Math.min(sz, 4_000_000));
+    const fd = openSync(p, 'r');
+    try { readSync(fd, buf, 0, buf.length, Math.max(0, sz - buf.length)); } finally { closeSync(fd); }
+    const txt = buf.toString('utf8');
+    const lines = txt.split('\n').filter((l) => l.startsWith('{'));
+    return lines;
+  };
+  const perProv = new Map();
+  const bump = (id, key) => { const e = perProv.get(id) || { req: 0, ok: 0, rate: 0, quota: 0, otherFail: 0, msSum: 0, msN: 0 }; e[key]++; perProv.set(id, e); return e; };
+  let req = 0, finalFail = 0;
+  const buckets = new Map();
+  let curGroup = null, curOrder = null;
+  for (const name of dayNames) {
+    for (const line of tailLines(name)) {
+      let r; try { r = JSON.parse(line); } catch { continue; }
+      const t0 = Date.parse(r.time || '');
+      if (!t0 || now - t0 > WIN_MS) continue;
+      req++;
+      const st = Number(r.status) || 0;
+      const bk = String(Math.floor(t0 / 600000)); // 10 分钟桶
+      const b = buckets.get(bk) || { t: Math.floor(t0 / 600000) * 600000, req: 0, fail: 0 };
+      b.req++;
+      // 499=用户点停止按钮的正常事件，不算中断；真中断=429 配额/限频 或 5xx 服务错误（WorkBuddy 不重试→任务断）
+      const isInterrupt = st !== 200 && st !== 201 && st !== 499;
+      if (isInterrupt) { finalFail++; b.fail++; }
+      buckets.set(bk, b);
+      for (const tr of (r.tries || [])) {
+        const id = String(tr.id || 'unknown');
+        const e = bump(id, 'req');
+        const ts = Number(tr.status) || 0;
+        if (ts === 200) { e.ok++; if (Number(tr.ms) > 0) { e.msSum += Number(tr.ms); e.msN++; } }
+        else if (tr.fail === 'rate') e.rate++;
+        else if (tr.fail === 'quota' || (tr.rest && tr.rest.why === 'quota')) e.quota++;
+        else e.otherFail++;
+      }
+      // 最新一条记录里的 order 携带当前各上游 rest 状态
+      if (Array.isArray(r.order)) { curGroup = r.group || curGroup; curOrder = r.order; }
+    }
+  }
+  const members = [];
+  for (const o of (curOrder || [])) {
+    const id = String(o.id || '');
+    if (!id.startsWith('volcengine')) continue;
+    const s = perProv.get(id);
+    let state = 'up', until = null;
+    if (o.rest) {
+      until = o.rest.until ? Date.parse(o.rest.until) : null;
+      if (o.rest.why === 'rate' && until && until > now) state = 'rate';
+      else if (o.rest.why === 'quota' && until && until > now) state = 'quota';
+    }
+    members.push({ id, name: String(o.name || id), state, until: until && until > now ? until : null,
+      rate2h: s?.rate || 0, quota2h: s?.quota || 0, req2h: s?.req || 0,
+      avgMs: s?.msN ? Math.round(s.msSum / s.msN) : null });
+  }
+  return {
+    ts: now, windowSec: Math.round(WIN_MS / 1000), lines: req,
+    groupId: curGroup?.id || 'subscription',
+    available: members.filter((m) => m.state === 'up').length, total: members.length,
+    members, req2h: req, finalFail2h: finalFail,
+    buckets: [...buckets.values()].sort((a, b) => a.t - b.t),
+  };
+}
+async function maybeNotifyMagpie(h) {
+  if (!h || h.error || !(h.finalFail2h > 0)) return;
+  const sp = join(ROOT, 'magpie_alert_state.json');
+  let last = 0;
+  try { last = JSON.parse(readFileSync(sp, 'utf8')).lastFinalFail || 0; } catch {}
+  if (Date.now() - last < 3600 * 1000) return; // 1h 去重
+  const r = spawnSync('python', [join(ROOT, '..', '00_System', 'bin', 'wb_notify.py'),
+    `[magpie] 订阅组近2h有 ${h.finalFail2h} 次请求最终失败（任务级中断）；可用上游 ${h.available}/${h.total}，请查 monitor.jivonlab.com`, '--tag', 'magpie-route'],
+    { shell: true, encoding: 'utf8' });
+  if (r.status === 0) writeFileSync(sp, JSON.stringify({ lastFinalFail: Date.now() }));
+}
+
+// ---------- magpie 配置结构（路由组/回退环展示，2026-10-28 主任令；只读结构，不含任何密钥）----------
+function fetchMagpieConfig() {
+  const p = join(homedir(), '.config', 'magpie', 'providers.json');
+  const raw = JSON.parse(readFileSync(p, 'utf8'));
+  const host = (u) => { try { return new URL(u).host; } catch { return ''; } };
+  return {
+    ts: Date.now(),
+    groups: (raw.groups || []).map((g) => ({ id: g.id, name: g.name || g.id, affinity: g.affinity || '', members: g.members || [] })),
+    providers: (raw.providers || []).map((pr) => ({
+      id: pr.id, name: pr.name || pr.id, host: host(pr.chat || ''), fallback: pr.fallback || [],
+    })),
+  };
+}
+
 // ---------- 主流程 ----------
 const zhipu = await safe(fetchZhipu, '智谱');
 const volcRes = await safe(fetchVolc, '火山');
@@ -501,16 +661,19 @@ const volcAgent = volcRes?.error ? { error: volcRes.error } : (volcRes?.agent ||
 const deepseek = await safe(fetchDeepseek, 'DeepSeek');
 const xf = await safe(fetchXf, 'xf');
 const qianfan = await safe(fetchQianfan, '千帆');
+const magpieHealth = await safe(() => collectMagpieHealth(), 'magpie');
+const magpieConfig = await safe(fetchMagpieConfig, 'magpie配置');
+await maybeNotifyMagpie(magpieHealth);
 const intel = await safe(() => collectIntel({ root: ROOT }), '情报');
 
 const zWorstPct = zhipu?.limits?.length ? Math.max(...zhipu.limits.map((l) => l.pct)) : null;
 const vSessionPct = volc?.periods?.find((p) => p.key === 'session')?.pct ?? null;
 
 // history：追加本次快照，保留最近 200 条；daily：按天聚合消耗快照（趋势预测数据底座）
-let history = [], daily = [], prevAdvice = null;
+let history = [], daily = [], prevAdvice = null, prevFailStreak = {};
 const dataPath = join(ROOT, 'data.json');
 if (existsSync(dataPath)) {
-  try { const prev = JSON.parse(readFileSync(dataPath, 'utf8')); history = prev.history || []; daily = prev.daily || []; prevAdvice = prev.advice || null; } catch {}
+  try { const prev = JSON.parse(readFileSync(dataPath, 'utf8')); history = prev.history || []; daily = prev.daily || []; prevAdvice = prev.advice || null; prevFailStreak = prev.volcFailStreak || {}; } catch {}
 }
 history.push({ ts: Date.now(), zWorstPct, vSessionPct });
 history = history.slice(-200);
@@ -533,12 +696,31 @@ if (di >= 0) { const old = daily[di]; for (const k of Object.keys(snap)) if (sna
 else daily.push(snap);
 daily = daily.slice(-60);
 
-// 财务提示：每天零点后首次采集生成，当天冻结（同日多轮采集沿用旧结论）
-const advice = (prevAdvice && prevAdvice.date === today)
-  ? prevAdvice
-  : buildAdvice({ accounts: volcRes?.accounts || null, xf, qianfan, daily, today });
+// 财务提示：每天零点后首次采集生成，当天冻结（同日多轮采集沿用旧结论）。
+// 例外（2026-10-28 主任质询后新增）：千帆透支/告急、xf 告急、火山满额窗口
+// 属"分钟级恶化"信号，当天冻结会让面板挂"约 5 天后耗尽"而实际已透支——
+// 这三类命中时当轮强制重算。
+const _critHit = (() => {
+  const q = qianfan, x = xf, accs = volcRes?.accounts || [];
+  const qCrit = q && !q.error && q.total > 0 && ((q.total - q.used) / q.total) <= 0.15;
+  const xCrit = x && !x.error && Number.isFinite(x.balance) &&
+    (() => { const h = (daily || []).filter((d) => d.date !== today).slice(-3).map((d) => Number(d.xfCost)).filter((n) => Number.isFinite(n) && n > 0); const avg = h.length ? h.reduce((a, b) => a + b, 0) / h.length : 0; return avg > 0 && (x.balance / avg) < 5; })();
+  let vFull = false;
+  for (const a of accs) for (const plan of [a.coding, a.agent]) for (const p of (plan?.periods || [])) if (Number(p.pct) >= 98) vFull = true;
+  return qCrit || xCrit || vFull;
+})();
+const advice = (_critHit || !(prevAdvice && prevAdvice.date === today))
+  ? buildAdvice({ accounts: volcRes?.accounts || null, xf, qianfan, daily, today })
+  : prevAdvice;
 
-const data = { ts: Date.now(), zhipu, volc, volcAgent, volcAccounts: volcRes?.accounts || null, deepseek, xf, qianfan, intel, history, daily, advice };
+// 保护②：火山各账号采集失败连续轮数（成功清零），供面板失败卡与告警使用
+const failStreak = {};
+for (const a of (volcRes?.accounts || [])) {
+  const lb = a.label || a.profile || 'default';
+  failStreak[lb] = a.error ? ((prevFailStreak[lb] || 0) + 1) : 0;
+}
+
+const data = { ts: Date.now(), zhipu, volc, volcAgent, volcAccounts: volcRes?.accounts || null, volcFailStreak: failStreak, deepseek, xf, qianfan, magpieHealth, magpieConfig, intel, history, daily, advice };
 // 原子写：页面每 2 分钟拉一次，直接覆写会撞上"文件只写了一半"导致 JSON 解析失败（表现为部分卡片停在"加载中"）
 writeFileSync(dataPath + '.tmp', JSON.stringify(data));
 renameSync(dataPath + '.tmp', dataPath);
