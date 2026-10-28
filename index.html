@@ -387,7 +387,7 @@ function winRow(w){
   const exhausted=w.pct>=99;
   return `<div class="row"><div class="top"><b>${esc(w.label)}${exhausted?' <span class="badge amber">已用尽</span>':''}</b><span class="pct" style="color:${pctColor(w.pct)}">${w.pct.toFixed(1)}%</span></div>
   <div class="bar"><i style="width:${Math.min(100,w.pct)}%;background:${pctColor(w.pct)}"></i></div>
-  <div class="meta">${w.approx?'约 ':''}${fmt(w.used)} / ${fmt(w.cap)} · <span class="cd" data-reset="${w.reset||''}">${w.reset?countdown(w.reset)+'重置':'—'}</span></div></div>`;
+  <div class="meta">${w.cap>0?`${w.approx?'约 ':''}${fmt(w.used)} / ${fmt(w.cap)} · <span class="cd" data-reset="${w.reset||''}">${w.reset?countdown(w.reset)+'重置':'—'}</span>`:'<span style="color:var(--mut)">新套餐 · 额度用量数据尚未生成（接口尚未回传窗口容量，套餐已生效可用）</span>'}</div></div>`;
 }
 const pend=(html)=>`<div class="pend">${html}</div>`;
 
