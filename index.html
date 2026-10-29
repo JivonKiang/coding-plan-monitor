@@ -307,6 +307,8 @@ footer{max-width:920px;margin:20px auto 0;font-size:11px;color:var(--dim);line-h
   <div class="card" id="vacard"><h2>火山 Agent Plan <span class="badge purple" id="vaedition">—</span><span class="badge" id="va1acct" style="display:none"></span></h2><div id="vabody">加载中…</div></div>
   <div class="card" id="vcard2" style="display:none"><h2>火山 Coding Plan <span class="badge orange" id="vedition2">—</span><span class="badge" id="v2acct"></span></h2><div id="vbody2">加载中…</div></div>
   <div class="card" id="vacard2" style="display:none"><h2>火山 Agent Plan <span class="badge purple" id="vaedition2">—</span><span class="badge" id="va2acct"></span></h2><div id="vabody2">加载中…</div></div>
+  <div class="card" id="vcard3" style="display:none"><h2>火山 Coding Plan <span class="badge orange" id="vedition3">—</span><span class="badge" id="v3acct"></span></h2><div id="vbody3">加载中…</div></div>
+  <div class="card" id="vacard3" style="display:none"><h2>火山 Agent Plan <span class="badge purple" id="vaedition3">—</span><span class="badge" id="va3acct"></span></h2><div id="vabody3">加载中…</div></div>
   <div class="card" id="dscard"><h2>DeepSeek 官方 <span class="badge red">按量</span></h2><div id="dsbody">加载中…</div></div>
   <div class="card" id="xfcard"><h2>xf 中转站 <span class="badge purple">按量</span></h2><div id="xfbody">加载中…</div></div>
   <div class="card" id="qfcard"><h2>千帆 <span style="font-weight:700">付费 Token Plan</span>（非兜底包）<span class="badge blue" id="qfplan">—</span></h2><div id="qfbody">加载中…</div></div>
@@ -426,9 +428,11 @@ function renderMini(d){
   const vTiles=[];
   const accts=Array.isArray(d.volcAccounts)?d.volcAccounts:[];
   if(accts.length){
-    const a1=accts[0]||{},a2=accts[1]||{};
-    volcAcct(a1,'coding','vcard');volcAcct(a1,'agent','vacard');
-    volcAcct(a2,'coding','vcard2');volcAcct(a2,'agent','vacard2');
+    const hrefs=[['vcard','vacard'],['vcard2','vacard2'],['vcard3','vacard3']];
+    accts.slice(0,3).forEach((a,i)=>{
+      const [ch,ah]=hrefs[i]||hrefs[2];
+      volcAcct(a||{},'coding',ch);volcAcct(a||{},'agent',ah);
+    });
   }else{
     if(d.volc&&d.volc.error)vTiles.push(tile('vcard','火山 Coding','采集失败','var(--red)',{text:String(d.volc.error).slice(0,42)}));
     else if(d.volc?.periods){const m=bind(d.volc.periods);vTiles.push(tileHtml('vcard','火山 Coding',m?m.pct.toFixed(1)+'%':'—',m?pctColor(m.pct):'var(--mut)',v3Foot(d.volc.periods)));}
@@ -883,41 +887,36 @@ function render(d){
         '<div class="note">额度单位 = AFP 燃料值（非请求次数），Agent 长任务按 token 折算；与 Coding Plan 分开计。</div>';
     } else $('vabody').innerHTML=pend('未发现已订阅的 Agent Plan，或 arkcli 未返回该 SKU。');
   }
-  // 火山第二账号（volcAccounts[1]，config.json 里 volcProfiles 的第 2 项）
-  const a2=vAccts[1];
-  if(a2){
-    if(a2.label){$('v2acct').textContent=a2.label;$('va2acct').textContent=a2.label;}
-    if(a2.coding&&a2.coding.periods){
-      $('vcard2').style.display='';
-      $('vedition2').textContent=a2.coding.edition||'—';
-      $('vbody2').innerHTML=a2.coding.periods.map(p=>winRow({...p,approx:1})).join('');
-    } else if(a2.error){
-      $('vcard2').style.display='';
-      $('vedition2').textContent='—';
-      $('vbody2').innerHTML=`<span class="err">采集失败：${esc(a2.error)}</span>`;
+  // 火山第 2/3 账号（volcAccounts[1..2]，config.json 里 volcProfiles 第 2/3 项；豆包=第 3）
+  [1,2].forEach((idx)=>{
+    const n=idx+1, a=vAccts[idx];
+    const ids={card:`vcard${n}`,ed:`vedition${n}`,body:`vbody${n}`,acct:`v${n}acct`,acard:`vacard${n}`,aed:`vaedition${n}`,abody:`vabody${n}`,aacct:`va${n}acct`};
+    if(!a){$(ids.card).style.display='none';$(ids.acard).style.display='none';return;}
+    if(a.label){$(ids.acct).textContent=a.label;$(ids.aacct).textContent=a.label;}
+    if(a.coding&&a.coding.periods){
+      $(ids.card).style.display='';
+      $(ids.ed).textContent=a.coding.edition||'—';
+      $(ids.body).innerHTML=a.coding.periods.map(p=>winRow({...p,approx:1})).join('');
+    } else if(a.error){
+      $(ids.card).style.display='';$(ids.ed).textContent='—';
+      $(ids.body).innerHTML=`<span class="err">采集失败：${esc(a.error)}</span>`;
     } else {
-      $('vcard2').style.display='';
-      $('vedition2').textContent='—';
-      $('vbody2').innerHTML=pend('未发现已订阅的 Coding Plan，或 arkcli 未返回该 SKU。');
+      $(ids.card).style.display='';$(ids.ed).textContent='—';
+      $(ids.body).innerHTML=pend('未发现已订阅的 Coding Plan，或 arkcli 未返回该 SKU。');
     }
-    if(a2.agent&&a2.agent.periods){
-      $('vacard2').style.display='';
-      $('vaedition2').textContent=a2.agent.tier?a2.agent.tier.charAt(0).toUpperCase()+a2.agent.tier.slice(1):'Personal';
-      $('vabody2').innerHTML=a2.agent.periods.map(p=>winRow(p)).join('')+
+    if(a.agent&&a.agent.periods){
+      $(ids.acard).style.display='';
+      $(ids.aed).textContent=a.agent.tier?a.agent.tier.charAt(0).toUpperCase()+a.agent.tier.slice(1):'Personal';
+      $(ids.abody).innerHTML=a.agent.periods.map(p=>winRow(p)).join('')+
         '<div class="note">额度单位 = AFP 燃料值（非请求次数）；与 Coding Plan 分开计。</div>';
-    } else if(a2.error){
-      $('vacard2').style.display='';
-      $('vaedition2').textContent='—';
-      $('vabody2').innerHTML=`<span class="err">采集失败：${esc(a2.error)}</span>`;
+    } else if(a.error){
+      $(ids.acard).style.display='';$(ids.aed).textContent='—';
+      $(ids.abody).innerHTML=`<span class="err">采集失败：${esc(a.error)}</span>`;
     } else {
-      $('vacard2').style.display='';
-      $('vaedition2').textContent='—';
-      $('vabody2').innerHTML=pend('未发现已订阅的 Agent Plan，或 arkcli 未返回该 SKU。');
+      $(ids.acard).style.display='';$(ids.aed).textContent='—';
+      $(ids.abody).innerHTML=pend('未发现已订阅的 Agent Plan，或 arkcli 未返回该 SKU。');
     }
-  } else {
-    $('vcard2').style.display='none';
-    $('vacard2').style.display='none';
-  }
+  });
   // DeepSeek / xf
   renderDeepseek(d.deepseek);
   renderXf(d.xf);
