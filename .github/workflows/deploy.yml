@@ -18,7 +18,7 @@ jobs:
   deploy:
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment1.outputs.page_url || steps.deployment2.outputs.page_url || steps.deployment3.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -33,6 +33,27 @@ jobs:
           # 只上传站点文件，密钥/采集脚本等本地文件不进 artifact（git 未跟踪，checkout 天然不含）
           path: '.'
 
-      - name: Deploy to GitHub Pages
-        id: deployment
+      # GitHub Pages 服务端偶发 503（约 40 次里 1 次），显式重试至多 3 次消除偶发失败邮件；
+      # 真故障（连续 3 败）由最后的 gate 步骤置败，仍会正常告警
+      - name: Deploy attempt 1
+        id: deployment1
+        continue-on-error: true
         uses: actions/deploy-pages@v4
+
+      - name: Deploy attempt 2 (retry after transient 503)
+        id: deployment2
+        if: steps.deployment1.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Deploy attempt 3 (final retry)
+        id: deployment3
+        if: steps.deployment2.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Fail if all attempts failed
+        if: steps.deployment1.outcome == 'failure' && steps.deployment2.outcome == 'failure' && steps.deployment3.outcome == 'failure'
+        run: |
+          echo "All 3 deploy attempts failed - this is a real Pages outage, not transient."
+          exit 1
