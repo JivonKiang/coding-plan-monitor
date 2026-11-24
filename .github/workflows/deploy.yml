@@ -43,8 +43,7 @@ jobs:
         continue-on-error: true
         uses: actions/deploy-pages@v4
 
-      - name: Deploy attempt 2 (retry after transient 503)
-        id: deployment2
+      - name: Wait 30s before retry 2 (artifact API consistency)
         if: steps.deployment1.outcome == 'failure'
         run: sleep 30
       - name: Deploy attempt 2 (retry after transient 503)
@@ -53,8 +52,7 @@ jobs:
         continue-on-error: true
         uses: actions/deploy-pages@v4
 
-      - name: Deploy attempt 3 (final retry)
-        id: deployment3
+      - name: Wait 60s before retry 3 (artifact API consistency)
         if: steps.deployment2.outcome == 'failure'
         run: sleep 60
       - name: Deploy attempt 3 (final retry)
