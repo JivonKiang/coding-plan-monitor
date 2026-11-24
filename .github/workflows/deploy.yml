@@ -35,6 +35,9 @@ jobs:
 
       # GitHub Pages 服务端偶发 503（约 40 次里 1 次），显式重试至多 3 次消除偶发失败邮件；
       # 真故障（连续 3 败）由最后的 gate 步骤置败，仍会正常告警
+      - name: Wait for artifact API consistency
+        run: sleep 20
+
       - name: Deploy attempt 1
         id: deployment1
         continue-on-error: true
@@ -43,9 +46,17 @@ jobs:
       - name: Deploy attempt 2 (retry after transient 503)
         id: deployment2
         if: steps.deployment1.outcome == 'failure'
+        run: sleep 30
+      - name: Deploy attempt 2 (retry after transient 503)
+        id: deployment2
+        if: steps.deployment1.outcome == 'failure'
         continue-on-error: true
         uses: actions/deploy-pages@v4
 
+      - name: Deploy attempt 3 (final retry)
+        id: deployment3
+        if: steps.deployment2.outcome == 'failure'
+        run: sleep 60
       - name: Deploy attempt 3 (final retry)
         id: deployment3
         if: steps.deployment2.outcome == 'failure'
